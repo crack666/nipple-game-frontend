@@ -3,6 +3,9 @@ import { api } from './api/client';
 import { CreatePuzzle } from './components/CreatePuzzle';
 import { RecentPuzzles } from './components/RecentPuzzles';
 import { PlayPuzzle } from './components/PlayPuzzle';
+import { TabsLayout } from './components/TabsLayout';
+import { GlobalLeaderboard } from './components/GlobalLeaderboard';
+import { MyPuzzles } from './components/MyPuzzles';
 
 interface User { id: string; username: string }
 
@@ -17,6 +20,17 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [refreshFlag, setRefreshFlag] = useState(0); // triggers lists refresh later
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [tab, setTab] = useState<'home'|'play'|'create'|'mine'>('home');
+
+  // Hash deep-link (#play=<id>)
+  useEffect(()=>{
+    const parse = ()=>{
+      const m = location.hash.match(/play=([a-f0-9\-]+)/i); if (m) { setPlayingId(m[1]); setTab('play'); }
+    };
+    parse();
+    window.addEventListener('hashchange', parse);
+    return ()=> window.removeEventListener('hashchange', parse);
+  },[]);
 
   useEffect(() => { api.health().then(h => setHealth(h.status)).catch(() => setHealth('offline')); }, []);
 
@@ -91,19 +105,39 @@ export function App() {
       )}
       {user && (
         <>
-          <div className="card">
-            <h2>Angemeldet</h2>
-              <p>Hallo <strong>{user.username}</strong></p>
-              <div className="btn-row">
-                <button onClick={me}>/auth/me</button>
+          <div className="card user-card">
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12}}>
+              <div><strong>{user.username}</strong></div>
+              <div className="btn-row" style={{margin:0}}>
                 <button onClick={refresh}>Refresh</button>
                 <button onClick={logout}>Logout</button>
               </div>
-              <p className="token-preview">Access Token: {accessToken?.slice(0,24)}...</p>
+            </div>
+            <p className="token-preview">Access: {accessToken?.slice(0,18)}...</p>
           </div>
-          <CreatePuzzle accessToken={accessToken!} onCreated={()=> setRefreshFlag(f=>f+1)} />
-          {playingId && <PlayPuzzle id={playingId} accessToken={accessToken} onClose={()=> setPlayingId(null)} />}
-          <RecentPuzzles refreshKey={refreshFlag} onSelect={(id)=> setPlayingId(id)} />
+          <TabsLayout active={tab} onChange={(k)=> setTab(k as any)} tabs={[
+            { key:'home', label:'Home' },
+            { key:'play', label:'Spielen' },
+            { key:'create', label:'Neues Puzzle' },
+            { key:'mine', label:'Meine Puzzles' }
+          ]} />
+          {tab==='home' && (
+            <>
+              <GlobalLeaderboard />
+              <RecentPuzzles refreshKey={refreshFlag} onSelect={(id)=> { setPlayingId(id); setTab('play'); location.hash = 'play='+id; }} />
+            </>
+          )}
+          {tab==='play' && (
+            <>
+              {playingId ? (
+                <PlayPuzzle id={playingId} accessToken={accessToken} onClose={()=> { setPlayingId(null); location.hash=''; }} />
+              ) : (
+                <div className="card"><p className="hint">Wähle ein Puzzle über Home oder teile einen Direkt-Link.</p></div>
+              )}
+            </>
+          )}
+          {tab==='create' && <CreatePuzzle accessToken={accessToken!} onCreated={()=> { setRefreshFlag(f=>f+1); setTab('mine'); }} />}
+          {tab==='mine' && <MyPuzzles token={accessToken!} onPlay={(id)=> { setPlayingId(id); setTab('play'); location.hash='play='+id; }} />}
         </>
       )}
       <footer className="app-footer">MVP – UI wird weiter ausgebaut</footer>
