@@ -36,7 +36,7 @@ export function CreatePuzzle({ accessToken, onCreated }: Props) {
     if (!file) return;
     setStatus('Uploading...'); setError('');
     try {
-      const meta = { blackout, points, gridCols: grid.cols, gridRows: grid.rows };
+  const meta = { blackout: { x: Math.round(blackout.x), y: Math.round(blackout.y), w: Math.round(blackout.w), h: Math.round(blackout.h) }, points, gridCols: grid.cols, gridRows: grid.rows };
       const res = await api.createPuzzle(accessToken, file, meta);
       setStatus('Erstellt: ' + res.id);
       onCreated?.(res.id);
@@ -59,9 +59,17 @@ export function CreatePuzzle({ accessToken, onCreated }: Props) {
   const dx = (e.clientX - ox) / scale; const dy = (e.clientY - oy) / scale;
   if (Math.abs(dx) > 2 || Math.abs(dy) > 2) wasDragRef.current = true;
   if (mode === 'move') {
-      setBlackout(b=>({ ...b, x: clamp(start.x + dx, 0, maxX(start.w)), y: clamp(start.y + dy, 0, maxY(start.h)) }));
+      setBlackout(b=>({
+        ...b,
+        x: Math.round(clamp(start.x + dx, 0, maxX(start.w))),
+        y: Math.round(clamp(start.y + dy, 0, maxY(start.h)))
+      }));
     } else {
-      setBlackout(b=>({ ...b, w: clamp(start.w + dx, 10, maxWidth(start.x)), h: clamp(start.h + dy, 10, maxHeight(start.y)) }));
+      setBlackout(b=>({
+        ...b,
+        w: Math.round(clamp(start.w + dx, 10, maxWidth(start.x))),
+        h: Math.round(clamp(start.h + dy, 10, maxHeight(start.y)))
+      }));
     }
   };
   const endAction = () => { actionRef.current = null; document.removeEventListener('pointermove', onDocMove); document.removeEventListener('pointerup', endAction); };
@@ -79,10 +87,10 @@ export function CreatePuzzle({ accessToken, onCreated }: Props) {
       setTimeout(()=>{ recalcScale(); }, 0);
       // Anfangsbox neutral (wird ggf. nach ersten Punkten automatisch angepasst)
       setBlackout({
-        w: Math.round(nw * 0.45),
-        h: Math.round(nh * 0.45),
-        x: Math.round(nw * 0.275),
-        y: Math.round(nh * 0.275)
+  w: Math.round(nw * 0.45),
+  h: Math.round(nh * 0.45),
+  x: Math.round(nw * 0.275),
+  y: Math.round(nh * 0.275)
       });
       manualBlackoutRef.current = false;
       setPoints([]);
@@ -170,7 +178,7 @@ export function CreatePuzzle({ accessToken, onCreated }: Props) {
     setBlackout(b => {
       // Nur setzen, wenn sich etwas wesentlich geändert hat (Vermeidung von Flicker)
       if (Math.abs(b.x - nx) < 2 && Math.abs(b.y - ny) < 2 && Math.abs(b.w - nw) < 2 && Math.abs(b.h - nh) < 2) return b;
-      return { x:nx, y:ny, w:nw, h:nh };
+      return { x: Math.round(nx), y: Math.round(ny), w: Math.round(nw), h: Math.round(nh) };
     });
   }, [points, naturalSize]);
 
@@ -218,7 +226,7 @@ export function CreatePuzzle({ accessToken, onCreated }: Props) {
           >
             <img ref={imgRef} src={URL.createObjectURL(file)} style={{display:'block',width:'100%',height:'auto',userSelect:'none',pointerEvents:'none'}} />
             {(manualBlackoutRef.current || points.length >= 2) && (
-              <div onPointerDown={startMove} style={{position:'absolute',left:blackout.x*scale,top:blackout.y*scale,width:blackout.w*scale,height:blackout.h*scale,outline:'2px solid #ffae00',background:'rgba(255,174,0,0.10)',cursor:'move',touchAction:'none'}} onPointerUp={(e)=>{
+              <div onPointerDown={startMove} style={{position:'absolute',left:blackout.x*scale,top:blackout.y*scale,width:blackout.w*scale,height:blackout.h*scale,outline:'2px solid #ffae00',background:'rgba(0,0,0,0.35)',cursor:'move',touchAction:'none'}} onPointerUp={(e)=>{
                 if (pointMode && !wasDragRef.current) {
                   // kein Punkt erzeugen
                 }
