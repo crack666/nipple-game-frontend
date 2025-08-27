@@ -65,11 +65,32 @@ export function CreatePuzzle({ accessToken, onCreated }: Props) {
         y: Math.round(clamp(start.y + dy, 0, maxY(start.h)))
       }));
     } else {
-      setBlackout(b=>({
-        ...b,
-        w: Math.round(clamp(start.w + dx, 10, maxWidth(start.x))),
-        h: Math.round(clamp(start.h + dy, 10, maxHeight(start.y)))
-      }));
+      // Symmetrisches Resize: Box wächst/ schrumpft gleichmäßig in beide Richtungen (Center bleibt stabil, solange kein Rand erreicht)
+      setBlackout(_ => {
+        let newW = start.w + dx;
+        let newH = start.h + dy;
+        // Mindestgröße
+        newW = Math.max(10, newW);
+        newH = Math.max(10, newH);
+        // Maximal nicht größer als Bild
+        newW = Math.min(newW, naturalSize.w);
+        newH = Math.min(newH, naturalSize.h);
+        // Ziel-Position: zentriert halten
+        let newX = start.x - (newW - start.w)/2;
+        let newY = start.y - (newH - start.h)/2;
+        // Klammern – wenn an Rand stoßen, Box innerhalb halten (Symmetrie geht dort teilweise verloren, akzeptabel)
+        if (newX < 0) newX = 0;
+        if (newY < 0) newY = 0;
+        if (newX + newW > naturalSize.w) newX = naturalSize.w - newW;
+        if (newY + newH > naturalSize.h) newY = naturalSize.h - newH;
+        // Final runden
+        return {
+          x: Math.round(newX),
+            y: Math.round(newY),
+            w: Math.round(newW),
+            h: Math.round(newH)
+        };
+      });
     }
   };
   const endAction = () => { actionRef.current = null; document.removeEventListener('pointermove', onDocMove); document.removeEventListener('pointerup', endAction); };

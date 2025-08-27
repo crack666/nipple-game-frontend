@@ -66,4 +66,7 @@ label { font-size:.75rem; display:flex; flex-direction:column; gap:.35rem; font-
 @keyframes pop { 0%{ transform:scale(.2); opacity:0;} 50%{opacity:1;} 100%{ transform:scale(1.8); opacity:0;} }
 .fx-hit { position:absolute; pointer-events:none; width:10px; height:10px; border-radius:50%; background:radial-gradient(circle at 30% 30%,#fff,#ff4fa3); animation:pop .9s ease-out forwards; mix-blend-mode:screen; }
 
+/* Play view image sizing to avoid vertical overflow */
+.play-img { width:100%; height:auto; object-fit:contain; }
+
 @media (max-width:640px){ .app-shell{padding:.9rem;} .card{padding:1rem 1.05rem 1.2rem;} }
