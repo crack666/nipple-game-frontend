@@ -27,6 +27,7 @@ export const api = {
   attemptPuzzle: (token: string, id: string, guesses: any[]) => fetch(BASE + '/puzzles/' + id + '/attempt', { method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+token }, body: JSON.stringify({ guesses }) }).then(async r=>{ if(!r.ok) throw new Error((await r.json().catch(()=>({})))?.error || 'attempt_failed'); return r.json(); }),
   attempts: (id: string) => fetch(BASE + '/puzzles/' + id + '/attempts').then(r=>r.json()),
   solution: (token: string, id: string) => fetch(BASE + '/puzzles/' + id + '/solution', { headers: { Authorization: 'Bearer ' + token } }).then(async r=> { if(!r.ok) throw new Error((await r.json().catch(()=>({})))?.error || 'solution_failed'); return r.json(); }),
+  original: (token: string, id: string) => fetch(BASE + '/puzzles/' + id + '/original', { headers: { Authorization: 'Bearer ' + token } }).then(async r=> { if(!r.ok) throw new Error((await r.json().catch(()=>({})))?.error || 'original_failed'); return r.json(); }),
   createPuzzle: async (token: string, file: File, meta: any) => {
     const fd = new FormData();
     fd.append('image', file);

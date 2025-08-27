@@ -12,6 +12,8 @@ export function PlayPuzzle({ id, accessToken, onClose }: { id:string; accessToke
   const [result, setResult] = useState<any>(null);
   const [scoreboard, setScoreboard] = useState<any[]|null>(null);
   const [solution, setSolution] = useState<any[]|null>(null);
+  const [originalUrl, setOriginalUrl] = useState<string|null>(null);
+  const [origErr, setOrigErr] = useState('');
   const [solError, setSolError] = useState('');
   const imgRef = useRef<HTMLImageElement|null>(null);
   const [natural, setNatural] = useState({ w:0,h:0 });
@@ -58,7 +60,12 @@ export function PlayPuzzle({ id, accessToken, onClose }: { id:string; accessToke
 
   const reveal = async () => {
     if (!accessToken || solution || !puzzle) return;
-    try { const s = await api.solution(accessToken, puzzle.id); setSolution(s.points); }
+    try {
+      const s = await api.solution(accessToken, puzzle.id); setSolution(s.points);
+      // Lade direkt im Anschluss das Originalbild (data URL)
+      try { const o = await api.original(accessToken, puzzle.id); setOriginalUrl(o.dataUrl); }
+      catch(e:any){ setOrigErr(e.message||'original_failed'); }
+    }
     catch(e:any){ setSolError(e.message||'solution_failed'); }
   };
 
@@ -74,7 +81,7 @@ export function PlayPuzzle({ id, accessToken, onClose }: { id:string; accessToke
         <div>
           <div style={{position:'relative',border:'1px solid #222',width:'100%',overflow:'hidden',marginBottom:'0.75rem',touchAction:'none'}} onClick={addGuess}>
             <img ref={imgRef} src={puzzle.image} style={{display:'block',width:'100%',height:'auto'}} />
-            <div style={{position:'absolute',left:puzzle.blackout.x*scale,top:puzzle.blackout.y*scale,width:puzzle.blackout.w*scale,height:puzzle.blackout.h*scale,background:'#0f1115',opacity:.85}} />
+            <div style={{position:'absolute',left:puzzle.blackout.x*scale,top:puzzle.blackout.y*scale,width:puzzle.blackout.w*scale,height:puzzle.blackout.h*scale,background:'#000',opacity:1}} />
             {guesses.map(g => {
               const size = guessSize; const offset = size/2;
               return (
@@ -100,13 +107,26 @@ export function PlayPuzzle({ id, accessToken, onClose }: { id:string; accessToke
               </div>
               {solError && <div className="error-box" style={{marginTop:8}}>{solError}</div>}
               {solution && (
-                <div style={{marginTop:'0.5rem'}}>
-                  <p className="hint">Original-Punkte eingeblendet.</p>
-                  <div style={{position:'relative',border:'1px solid #222',maxWidth:'100%',overflow:'hidden'}}>
-                    <img src={puzzle.image} style={{display:'block',maxWidth:'100%',opacity:0.35}} />
-                    {solution.map((pt:any)=>(
-                      <div key={pt.index} style={{position:'absolute',left:pt.x-7,top:pt.y-7,width:18,height:18,borderRadius:12,background:'#22c55e',border:'2px solid #fff',fontSize:10,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',color:'#05310f'}}>{pt.index+1}</div>
-                    ))}
+                <div style={{marginTop:'0.75rem'}}>
+                  <h4>Auflösung</h4>
+                  <p className="hint">Deine geratenen Punkte (pink) vs. echte Punkte (grün). Originalbild wird angezeigt sobald verfügbar.</p>
+                  <div style={{display:'flex',flexWrap:'wrap',gap:'1rem'}}>
+                    <div style={{flex:'1 1 320px',minWidth:280}}>
+                      <div style={{position:'relative',border:'1px solid #222',maxWidth:'100%',overflow:'hidden'}}>
+                        <img src={originalUrl || puzzle.image} style={{display:'block',maxWidth:'100%',opacity: originalUrl ? 1 : 0.4, transition:'opacity .3s'}} />
+                        {solution.map((pt:any)=>(
+                          <div key={pt.index} style={{position:'absolute',left:pt.x-7,top:pt.y-7,width:18,height:18,borderRadius:12,background:'#22c55e',border:'2px solid #fff',fontSize:10,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',color:'#05310f'}}>{pt.index+1}</div>
+                        ))}
+                        {guesses.map(g => {
+                          const size = 18; const offset = size/2;
+                          return (
+                            <div key={'g'+g.index} style={{position:'absolute',left:g.x-offset,top:g.y-offset,width:size,height:size,borderRadius:size/2,background:'#ff4fa3',border:'2px solid #fff',fontSize:10,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',color:'#111',boxShadow:'0 0 0 1px #3a0c21'}}>{g.index+1}</div>
+                          );
+                        })}
+                      </div>
+                      {!originalUrl && <p className="hint" style={{marginTop:4}}>Original lädt... (falls nicht erscheint: <button style={{fontSize:11}} onClick={async()=>{ if(!accessToken) return; try { const o = await api.original(accessToken, puzzle.id); setOriginalUrl(o.dataUrl); } catch(e:any){ setOrigErr(e.message||'original_failed'); } }}>erneut laden</button>)</p>}
+                      {origErr && <div className="error-box" style={{marginTop:4}}>{origErr}</div>}
+                    </div>
                   </div>
                 </div>
               )}
