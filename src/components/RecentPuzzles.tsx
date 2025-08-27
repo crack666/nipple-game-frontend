@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 
-interface Item { id:string; w:number; h:number; image:string; createdAt:string }
+interface Item { id:string; w:number; h:number; image:string; createdAt:string; attempted?:boolean }
 
 export function RecentPuzzles({ onSelect, refreshKey }: { onSelect?: (id:string)=>void; refreshKey?: number }) {
   const [items, setItems] = useState<Item[]>([]);
@@ -16,10 +16,11 @@ export function RecentPuzzles({ onSelect, refreshKey }: { onSelect?: (id:string)
       {!loading && !error && !items.length && <div className="hint">Keine Puzzles vorhanden.</div>}
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))',gap:'0.75rem'}}>
         {items.map(p=> (
-          <button key={p.id} className="puzzle-thumb" onClick={()=>onSelect?.(p.id)} style={{padding:0,background:'#161b22'}}>
+          <button key={p.id} className="puzzle-thumb" onClick={()=>onSelect?.(p.id)} style={{padding:0,background:'#161b22',opacity:p.attempted? .55:1, position:'relative'}}>
             <div style={{position:'relative',width:'100%',paddingBottom:'70%',overflow:'hidden',borderRadius:10}}>
               <img src={p.image} alt="puzzle" style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',filter:'contrast(.9) brightness(.9)'}} />
               <div style={{position:'absolute',left:4,top:4,fontSize:10,background:'rgba(0,0,0,.55)',padding:'2px 5px',borderRadius:6}}>{p.w}x{p.h}</div>
+              {p.attempted && <div style={{position:'absolute',right:4,top:4,fontSize:11,background:'rgba(0,0,0,.55)',padding:'2px 6px',borderRadius:6,display:'flex',alignItems:'center',gap:4}}><span style={{fontSize:12}}>✔</span> played</div>}
             </div>
           </button>
         ))}

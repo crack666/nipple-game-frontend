@@ -21,6 +21,7 @@ export function App() {
   const [refreshFlag, setRefreshFlag] = useState(0); // triggers lists refresh later
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [tab, setTab] = useState<'home'|'play'|'create'|'mine'>('home');
+  const [recentCache, setRecentCache] = useState<any[]>([]);
 
   // Hash deep-link (#play=<id>)
   useEffect(()=>{
@@ -33,6 +34,14 @@ export function App() {
   },[]);
 
   useEffect(() => { api.health().then(h => setHealth(h.status)).catch(() => setHealth('offline')); }, []);
+  // Cache recent puzzles for random play
+  useEffect(()=>{ (async()=>{ try { const r = await api.recentPuzzles(); setRecentCache(r.items||[]); } catch{/*ignore*/} })(); }, [refreshFlag, accessToken]);
+  // Auto-select random puzzle when entering play tab without selection
+  useEffect(()=>{ if (tab==='play' && !playingId && recentCache.length) {
+    const unseen = recentCache.filter(p=>!p.attempted);
+    const source = unseen.length? unseen : recentCache; // fallback falls alle gespielt
+    const pick = source[Math.floor(Math.random()*source.length)]; if (pick) { setPlayingId(pick.id); location.hash='play='+pick.id; }
+  } }, [tab, playingId, recentCache]);
 
   // Silent Refresh beim ersten Laden: versucht Access Token über Refresh Cookie wiederherzustellen
   useEffect(() => {
@@ -130,9 +139,9 @@ export function App() {
           {tab==='play' && (
             <>
               {playingId ? (
-                <PlayPuzzle id={playingId} accessToken={accessToken} onClose={()=> { setPlayingId(null); location.hash=''; }} />
+                <PlayPuzzle id={playingId} accessToken={accessToken} userId={user.id} onClose={()=> { setPlayingId(null); location.hash=''; }} />
               ) : (
-                <div className="card"><p className="hint">Wähle ein Puzzle über Home oder teile einen Direkt-Link.</p></div>
+                <div className="card"><p className="hint">Zufälliges Puzzle wird geladen...</p></div>
               )}
             </>
           )}

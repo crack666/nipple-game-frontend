@@ -10,7 +10,8 @@ export default defineConfig({
       '/auth': { target: 'http://localhost:3000', changeOrigin: true },
       '/puzzles': { target: 'http://localhost:3000', changeOrigin: true },
       '/health': { target: 'http://localhost:3000', changeOrigin: true },
-      '/images': { target: 'http://localhost:3000', changeOrigin: true }
+  '/images': { target: 'http://localhost:3000', changeOrigin: true },
+  '/leaderboard': { target: 'http://localhost:3000', changeOrigin: true }
     }
   }
 });
