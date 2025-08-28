@@ -128,7 +128,7 @@ export function App() {
             { key:'home', label:'Home' },
             { key:'play', label:'Spielen' },
             { key:'create', label:'Neues Puzzle' },
-            { key:'mine', label:'Meine Puzzles' }
+            { key:'mine', label:'Alle Puzzles' }
           ]} />
           {tab==='home' && (
             <>
@@ -146,7 +146,7 @@ export function App() {
             </>
           )}
           {tab==='create' && <CreatePuzzle accessToken={accessToken!} onCreated={()=> { setRefreshFlag(f=>f+1); setTab('mine'); }} />}
-          {tab==='mine' && <MyPuzzles token={accessToken!} onPlay={(id)=> { setPlayingId(id); setTab('play'); location.hash='play='+id; }} />}
+          {tab==='mine' && <MyPuzzles token={accessToken!} userId={user?.id} onPlay={(id)=> { setPlayingId(id); setTab('play'); location.hash='play='+id; }} />}
         </>
       )}
       <footer className="app-footer">MVP – UI wird weiter ausgebaut</footer>

@@ -23,13 +23,22 @@ export const api = {
   logout: () => j('POST','/auth/logout'),
   me: (token: string) => j('GET','/auth/me', undefined, token),
   recentPuzzles: () => fetch(BASE + '/puzzles/recent', { credentials:'include' }).then(r=>r.json()),
-  getPuzzle: (id: string) => fetch(BASE + '/puzzles/' + id).then(r=>r.json()), // returns {attempt, solutionPoints} if user already played/owns
+  getPuzzle: (id: string, token?: string) => {
+    const headers: Record<string,string> = {};
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    return fetch(BASE + '/puzzles/' + id, { headers, credentials: 'include' }).then(r=>r.json());
+  },
   attemptPuzzle: (token: string, id: string, guesses: any[]) => fetch(BASE + '/puzzles/' + id + '/attempt', { method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+token }, body: JSON.stringify({ guesses }) }).then(async r=>{ if(!r.ok) throw new Error((await r.json().catch(()=>({})))?.error || 'attempt_failed'); return r.json(); }),
-  attempts: (id: string) => fetch(BASE + '/puzzles/' + id + '/attempts').then(r=>r.json()), // now includes accuracyPercent per attempt
+  attempts: (id: string, token?: string) => {
+    const headers: Record<string,string> = {};
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    return fetch(BASE + '/puzzles/' + id + '/attempts', { headers, credentials: 'include' }).then(r=>r.json());
+  },
   solution: (token: string, id: string) => fetch(BASE + '/puzzles/' + id + '/solution', { headers: { Authorization: 'Bearer ' + token } }).then(async r=> { if(!r.ok) throw new Error((await r.json().catch(()=>({})))?.error || 'solution_failed'); return r.json(); }),
   original: (token: string, id: string) => fetch(BASE + '/puzzles/' + id + '/original', { headers: { Authorization: 'Bearer ' + token } }).then(async r=> { if(!r.ok) throw new Error((await r.json().catch(()=>({})))?.error || 'original_failed'); return r.json(); }),
   mine: (token: string) => fetch(BASE + '/puzzles/mine', { headers: { Authorization: 'Bearer ' + token } }).then(async r=> { if(!r.ok) throw new Error((await r.json().catch(()=>({})))?.error || 'mine_failed'); return r.json(); }),
   deletePuzzle: (token: string, id: string) => fetch(BASE + '/puzzles/' + id, { method:'DELETE', headers: { Authorization: 'Bearer ' + token } }).then(async r=> { if(!r.ok) throw new Error((await r.json().catch(()=>({})))?.error || 'delete_failed'); return r.json(); }),
+  deleteAttempt: (token: string, puzzleId: string, attemptId: string) => fetch(BASE + '/puzzles/' + puzzleId + '/attempts/' + attemptId, { method:'DELETE', headers: { Authorization: 'Bearer ' + token } }).then(async r=> { if(!r.ok) throw new Error((await r.json().catch(()=>({})))?.error || 'delete_attempt_failed'); return r.json(); }),
   leaderboard: () => fetch(BASE + '/leaderboard').then(r=>r.json()),
   createPuzzle: async (token: string, file: File, meta: any) => {
     const fd = new FormData();
