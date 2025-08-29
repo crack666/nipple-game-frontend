@@ -171,9 +171,12 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
     const piece = pieces[guess.index];
     if (!piece) return;
     
-    const containerSize = 24;
-    const scaledPieceWidth = containerSize;
-    const scaledPieceHeight = containerSize;
+    // Verwende die konsistente scale Variable
+    const actualPieceWidth = piece.width * scale;
+    const actualPieceHeight = piece.height * scale;
+    const minSize = 8;
+    const scaledPieceWidth = Math.max(actualPieceWidth, minSize);
+    const scaledPieceHeight = Math.max(actualPieceHeight, minSize);
     
     const rect = e.currentTarget.getBoundingClientRect();
     const offset = {
@@ -197,9 +200,12 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
     const piece = pieces[guess.index];
     if (!piece) return;
     
-    const containerSize = 24;
-    const scaledPieceWidth = containerSize;
-    const scaledPieceHeight = containerSize;
+    // Verwende die konsistente scale Variable
+    const actualPieceWidth = piece.width * scale;
+    const actualPieceHeight = piece.height * scale;
+    const minSize = 8;
+    const scaledPieceWidth = Math.max(actualPieceWidth, minSize);
+    const scaledPieceHeight = Math.max(actualPieceHeight, minSize);
     
     const touch = e.touches[0];
     const rect = e.currentTarget.getBoundingClientRect();
@@ -600,18 +606,22 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
                 }
                 
                 // Scale piece size according to current image scale
-                // Einfache Lösung: Container ist immer 24px, Bild füllt Container komplett aus
-                const basePieceWidth = piece.width * scale;
-                const basePieceHeight = piece.height * scale;
+                // KONSISTENT: Verwende die gleiche scale Variable wie für alle anderen Elemente
+                if (!imgRef.current) return null;
                 
-                // Container-Größe: 24px für gute Sichtbarkeit und Bedienbarkeit
-                const containerSize = 24;
-                const scaledPieceWidth = containerSize;
-                const scaledPieceHeight = containerSize;
+                // Verwende die bereits berechnete scale Variable für Konsistenz
+                // Diese wird in recalcScale() berechnet und berücksichtigt viewport constraints
+                const actualPieceWidth = piece.width * scale;
+                const actualPieceHeight = piece.height * scale;
                 
-                // Bild füllt Container komplett aus
-                const displayPieceWidth = containerSize;
-                const displayPieceHeight = containerSize;
+                // Mindestgröße nur für extreme Fälle (sehr kleine Displays)
+                const minSize = 8; // Noch kleiner für bessere Proportionalität
+                const scaledPieceWidth = Math.max(actualPieceWidth, minSize);
+                const scaledPieceHeight = Math.max(actualPieceHeight, minSize);
+                
+                // Container und Bild haben identische Größe für perfekte Übereinstimmung
+                const displayPieceWidth = scaledPieceWidth;
+                const displayPieceHeight = scaledPieceHeight;
                 const beingDragged = draggedPiece?.index === g.index;
                 
                 return (
