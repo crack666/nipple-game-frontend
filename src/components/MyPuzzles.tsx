@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 
-interface Item { id:string; w:number; h:number; image:string; createdAt:string; createdBy?:string; attempt?: any }
+interface Item { id:string; w:number; h:number; image:string; createdAt:string; createdBy?:string; createdByUsername?:string; attempt?: any }
 
 export function MyPuzzles({ token, onPlay, userId }: { token:string; onPlay:(id:string)=>void; userId?:string }) {
   const [items,setItems]=useState<Item[]>([]);
@@ -102,7 +102,7 @@ export function MyPuzzles({ token, onPlay, userId }: { token:string; onPlay:(id:
                 <div style={{position:'absolute',left:4,top:4,fontSize:10,background:'rgba(0,0,0,.55)',padding:'2px 5px',borderRadius:6}}>{p.w}x{p.h}</div>
                 {/* Creator info */}
                 <div style={{position:'absolute',left:4,bottom:4,fontSize:9,background:'rgba(0,0,0,.75)',color:'#fff',padding:'2px 5px',borderRadius:4,maxWidth:'calc(100% - 8px)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                  {isOwnPuzzle ? '👤 ' : ''}von {details?.createdBy || p.createdBy || 'Unbekannt'}
+                  {isOwnPuzzle ? '👤 ' : ''}von {p.createdByUsername || details?.createdByUsername || 'Unbekannt'}
                 </div>
                 {hasAttempt ? (
                   <div style={{position:'absolute',right:4,top:4,fontSize:9,background:'rgba(34,197,94,.9)',color:'#fff',padding:'2px 5px',borderRadius:6,fontWeight:'bold'}}>✅ Erledigt</div>
@@ -121,7 +121,7 @@ export function MyPuzzles({ token, onPlay, userId }: { token:string; onPlay:(id:
                   </button>
                 )}
                 {/* Only show delete button for own puzzles */}
-                {details?.createdBy === userId && (
+                {(details?.createdBy === userId || p.createdBy === userId) && (
                   <button onClick={()=>del(p.id)} disabled={busy===p.id} style={{flex:'1 0 100%',background:'#7f1d1d'}}>{busy===p.id? '...':'Puzzle löschen'}</button>
                 )}
               </div>

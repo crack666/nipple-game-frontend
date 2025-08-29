@@ -21,7 +21,22 @@ export function CreatePuzzle({ accessToken, onCreated }: Props) {
   const actionRef = useRef<{mode:'move'|'resize', ox:number, oy:number, start:{x:number,y:number,w:number,h:number}}|null>(null);
   const manualBlackoutRef = useRef(false); // wurde Box bereits manuell verändert?
 
-  const onFile = (f: File) => { setFile(f); setPoints([]); setStatus(''); setError(''); };
+  const supportedFormats = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'image/bmp', 'image/tiff'];
+  const supportedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'tiff'];
+
+  const onFile = (f: File) => { 
+    // Validate file format
+    const extension = f.name.split('.').pop()?.toLowerCase();
+    if (!supportedFormats.includes(f.type) && !supportedExtensions.includes(extension || '')) {
+      setError(`Unsupported format: ${f.type || 'unknown'}. Supported: JPEG, PNG, WebP, GIF, BMP, TIFF`);
+      return;
+    }
+    
+    setFile(f); 
+    setPoints([]); 
+    setStatus(''); 
+    setError(''); 
+  };
 
   const addPointAt = (clientX:number, clientY:number) => {
     if (!imgRef.current) return;
@@ -222,7 +237,7 @@ export function CreatePuzzle({ accessToken, onCreated }: Props) {
     <div className="card">
       <h2>Neues Puzzle</h2>
       <div className="form-grid">
-        <input type="file" accept="image/*" onChange={e=> e.target.files && onFile(e.target.files[0])} />
+        <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,image/bmp,image/tiff" onChange={e=> e.target.files && onFile(e.target.files[0])} />
         <div className="btn-row" style={{flexWrap:'wrap'}}>
           <label style={{flex:'1 1 auto'}}>Grid C
             <input type="number" min={2} max={100} value={grid.cols} onChange={e=>setGrid(g=>({...g, cols:+e.target.value}))} />

@@ -1,5 +1,6 @@
 // Für Dev nutzen wir Vite Proxy => relative Pfade, damit Cookies (SameSite=Lax) gesendet werden
-const BASE = '';
+// Für Production nutzen wir die direkte Backend URL
+const BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 async function j(method: string, path: string, body?: any, token?: string) {
   const headers: Record<string,string> = {};

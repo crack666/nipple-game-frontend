@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { api } from '../api/client';
 
-interface PuzzleMeta { id:string; width:number; height:number; blackout:{x:number,y:number,w:number,h:number}; grid:{cols:number;rows:number}; image:string; pointsCount:number; attempt?: any; solutionPoints?: any[] }
+interface PuzzleMeta { id:string; width:number; height:number; blackout:{x:number,y:number,w:number,h:number}; grid:{cols:number;rows:number}; image:string; pointsCount:number; attempt?: any; solutionPoints?: any[]; createdBy?:string; createdByUsername?:string }
 interface Guess { x:number; y:number; index:number }
 
 export function PlayPuzzle({ id, accessToken, userId, onClose }: { id:string; accessToken:string|null; userId?:string; onClose:()=>void }) {
@@ -260,6 +260,11 @@ export function PlayPuzzle({ id, accessToken, userId, onClose }: { id:string; ac
         <h2>Spielen</h2>
         <button onClick={onClose}>Schließen</button>
       </div>
+      {puzzle?.createdByUsername && (
+        <div style={{marginBottom:'0.5rem', padding:'0.25rem 0.5rem', background:'rgba(34,197,94,0.1)', borderRadius:'6px', fontSize:'0.85rem', color:'#22c55e'}}>
+          👤 Erstellt von: <strong>{puzzle.createdByUsername}</strong>
+        </div>
+      )}
       {loading && <div className="hint">lädt...</div>}
       {error && <div className="error-box">{getErrorMessage(error)}</div>}
       {puzzle && (
