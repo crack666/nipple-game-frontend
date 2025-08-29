@@ -171,8 +171,9 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
     const piece = pieces[guess.index];
     if (!piece) return;
     
-    const scaledPieceWidth = piece.width * scale;
-    const scaledPieceHeight = piece.height * scale;
+    const containerSize = 24;
+    const scaledPieceWidth = containerSize;
+    const scaledPieceHeight = containerSize;
     
     const rect = e.currentTarget.getBoundingClientRect();
     const offset = {
@@ -196,8 +197,9 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
     const piece = pieces[guess.index];
     if (!piece) return;
     
-    const scaledPieceWidth = piece.width * scale;
-    const scaledPieceHeight = piece.height * scale;
+    const containerSize = 24;
+    const scaledPieceWidth = containerSize;
+    const scaledPieceHeight = containerSize;
     
     const touch = e.touches[0];
     const rect = e.currentTarget.getBoundingClientRect();
@@ -598,9 +600,18 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
                 }
                 
                 // Scale piece size according to current image scale
-                // WICHTIG: Keine Mindestgröße verwenden - das zerstört die Positionierung!
-                const scaledPieceWidth = piece.width * scale;
-                const scaledPieceHeight = piece.height * scale;
+                // Einfache Lösung: Container ist immer 24px, Bild füllt Container komplett aus
+                const basePieceWidth = piece.width * scale;
+                const basePieceHeight = piece.height * scale;
+                
+                // Container-Größe: 24px für gute Sichtbarkeit und Bedienbarkeit
+                const containerSize = 24;
+                const scaledPieceWidth = containerSize;
+                const scaledPieceHeight = containerSize;
+                
+                // Bild füllt Container komplett aus
+                const displayPieceWidth = containerSize;
+                const displayPieceHeight = containerSize;
                 const beingDragged = draggedPiece?.index === g.index;
                 
                 return (
@@ -638,8 +649,13 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
                       src={piece.imageData}
                       alt={`Piece ${g.index + 1}`}
                       style={{ 
-                        width: '100%', 
-                        height: '100%',
+                        width: displayPieceWidth, 
+                        height: displayPieceHeight,
+                        position: 'absolute',
+                        left: '50%',
+                        top: '50%',
+                        transform: 'translate(-50%, -50%)',
+                        borderRadius: '50%', // Macht das Bild selbst rund
                         pointerEvents: 'none',
                         userSelect: 'none'
                       }}
