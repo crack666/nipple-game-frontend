@@ -4,7 +4,7 @@ import { api } from '../api/client';
 interface PuzzleMeta { id:string; width:number; height:number; blackout:{x:number,y:number,w:number,h:number}; grid:{cols:number;rows:number}; image:string; pointsCount:number; attempt?: any; solutionPoints?: any[]; createdBy?:string; createdByUsername?:string }
 interface Guess { x:number; y:number; index:number }
 
-export function PlayPuzzle({ id, accessToken, userId, onClose }: { id:string; accessToken:string|null; userId?:string; onClose:()=>void }) {
+export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:string; accessToken:string|null; userId?:string; username?:string; onClose:()=>void }) {
   const [puzzle, setPuzzle] = useState<PuzzleMeta|null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -30,6 +30,9 @@ export function PlayPuzzle({ id, accessToken, userId, onClose }: { id:string; ac
   const [showWorstTips, setShowWorstTips] = useState(true); // Show 3 worst tips  
   const [showAllOthers, setShowAllOthers] = useState(false); // Show all other tips
   const [highlightedUser, setHighlightedUser] = useState<string | null>(null); // For highlighting specific user's guesses
+  const [usePuzzlePieces, setUsePuzzlePieces] = useState(false); // Toggle between piece mode and click mode
+  const [pieces, setPieces] = useState<any[]>([]); // Available puzzle pieces
+  const [loadingPieces, setLoadingPieces] = useState(false);
   
   // Determine if we're in view mode (puzzle already attempted by this user)
   const isViewMode = Boolean(puzzle?.attempt);
@@ -112,13 +115,34 @@ export function PlayPuzzle({ id, accessToken, userId, onClose }: { id:string; ac
     if (!puzzle || result || !canPlay) return; // Block if in view mode
     if (!imgRef.current) return;
     if (guesses.length >= puzzle.pointsCount) return;
+    
     const rect = (e.currentTarget).getBoundingClientRect();
-  // Verwende tatsächliches Bild-Rect (nicht Container), falls Bild kleiner als Container (Letterboxing)
-  const imgRect = imgRef.current.getBoundingClientRect();
-  const x = Math.round((e.clientX - imgRect.left)/scale);
-  const y = Math.round((e.clientY - imgRect.top)/scale);
-  if (x < 0 || y < 0 || x > natural.w || y > natural.h) return; // outside actual image
-    setGuesses(gs => [...gs, { x, y, index: gs.length }]);
+    // Verwende tatsächliches Bild-Rect (nicht Container), falls Bild kleiner als Container (Letterboxing)
+    const imgRect = imgRef.current.getBoundingClientRect();
+    const x = Math.round((e.clientX - imgRect.left)/scale);
+    const y = Math.round((e.clientY - imgRect.top)/scale);
+    if (x < 0 || y < 0 || x > natural.w || y > natural.h) return; // outside actual image
+    
+    if (usePuzzlePieces) {
+      // In pieces mode: try to place a piece at this location
+      placePieceAtLocation(x, y);
+    } else {
+      // Traditional mode: add a bubble guess
+      setGuesses(gs => [...gs, { x, y, index: gs.length }]);
+    }
+  };
+
+  // Place piece at location (pieces mode)
+  const placePieceAtLocation = (x: number, y: number) => {
+    if (!puzzle || guesses.length >= puzzle.pointsCount) return;
+    
+    // Find next unplaced piece
+    const usedPieceIndices = guesses.map(g => g.index);
+    const nextPieceIndex = pieces.findIndex((_, index) => !usedPieceIndices.includes(index));
+    
+    if (nextPieceIndex >= 0) {
+      setGuesses(gs => [...gs, { x, y, index: nextPieceIndex }]);
+    }
   };
   // Recalculate scale when original image replaces masked (could differ in intrinsic size)
   useEffect(()=>{ if (originalUrl) setTimeout(()=> recalcScale(), 50); }, [originalUrl]);
@@ -158,6 +182,35 @@ export function PlayPuzzle({ id, accessToken, userId, onClose }: { id:string; ac
       } else {
         setError(msg);
       }
+    }
+  };
+
+  // Load puzzle pieces
+  const loadPuzzlePieces = async () => {
+    if (!accessToken || !puzzle) return;
+    
+    try {
+      setLoadingPieces(true);
+      const data = await api.getPuzzlePieces(puzzle.id, accessToken);
+      setPieces(data.pieces || []);
+    } catch (err: any) {
+      console.error('Failed to load puzzle pieces:', err);
+    } finally {
+      setLoadingPieces(false);
+    }
+  };
+
+  // Toggle pieces mode and load pieces when activated
+  const togglePiecesMode = async () => {
+    if (!usePuzzlePieces) {
+      // Switching to pieces mode - load pieces
+      await loadPuzzlePieces();
+      setUsePuzzlePieces(true);
+    } else {
+      // Switching back to bubbles mode
+      setUsePuzzlePieces(false);
+      // Clear any pieces that were loaded to save memory
+      setPieces([]);
     }
   };
 
@@ -386,52 +439,132 @@ export function PlayPuzzle({ id, accessToken, userId, onClose }: { id:string; ac
                   transition: 'all 0.2s ease'
                 }}>{getInitials(g.user)}</div>; 
             })}
-            {/* Player guesses (pink) always */}
+            {/* Player guesses - bubbles or pieces depending on mode */}
             {showOwn && guesses.map(g => { 
-              const size = guessSize; 
-              const offset = size/2; 
-              
-              // Check if current user is highlighted (when they highlight themselves in leaderboard)
-              const isOwnUserHighlighted = highlightedUser && scoreboard?.find(s => 
-                s.user === highlightedUser && userId && (s.userId === userId || s.user === userId)
-              );
-              const shouldHighlight = isOwnUserHighlighted;
-              
-              return (
-                <div key={'g'+g.index} 
-                  style={{
-                    position:'absolute',
-                    left:imgOffset.x + g.x*scale-offset,
-                    top:imgOffset.y + g.y*scale-offset,
-                    width:size,
-                    height:size,
-                    borderRadius:size/2,
-                    background:'#ff4fa3',
-                    border: shouldHighlight ? '3px solid #ff6600' : '2px solid #fff',
-                    display:'flex',
-                    alignItems:'center',
-                    justifyContent:'center',
-                    fontSize:Math.max(10,size*0.45),
-                    fontWeight:700,
-                    color:'#111',
-                    boxShadow: shouldHighlight ? '0 0 0 2px #ff6600, 0 0 8px rgba(255,102,0,0.3)' : '0 0 0 1px #3a0c21',
-                    transform: shouldHighlight ? 'scale(1.2)' : 'scale(1)',
-                    zIndex: shouldHighlight ? 15 : 5,
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  {g.index+1}
-                </div>
-              ); 
+              // Only use pieces in active play mode (not view mode) and when pieces mode is active
+              if (usePuzzlePieces && pieces.length > 0 && canPlay && !isViewMode) {
+                // Render as puzzle piece (only during active gameplay)
+                const piece = pieces[g.index];
+                if (!piece) return null;
+                
+                // Scale piece size according to current image scale
+                const scaledPieceWidth = piece.width * scale;
+                const scaledPieceHeight = piece.height * scale;
+                
+                return (
+                  <div
+                    key={`piece-${g.index}`}
+                    style={{
+                      position: 'absolute',
+                      left: imgOffset.x + g.x * scale - scaledPieceWidth / 2,
+                      top: imgOffset.y + g.y * scale - scaledPieceHeight / 2,
+                      width: scaledPieceWidth,
+                      height: scaledPieceHeight,
+                      cursor: 'pointer',
+                      borderRadius: '50%', // Make pieces circular
+                      overflow: 'hidden', // Hide corners for circular effect
+                      zIndex: 10,
+                      transition: 'transform 0.2s ease',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.3)' // Subtle shadow for better visibility
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Remove this guess
+                      setGuesses(gs => gs.filter(guess => guess.index !== g.index));
+                    }}
+                    title={`Piece ${g.index + 1} - Klicken zum Entfernen`}
+                  >
+                    <img
+                      src={piece.imageData}
+                      alt={`Piece ${g.index + 1}`}
+                      style={{ 
+                        width: '100%', 
+                        height: '100%',
+                        pointerEvents: 'none',
+                        userSelect: 'none'
+                      }}
+                    />
+                  </div>
+                );
+              } else {
+                // Render as traditional bubble (same size and style as others, but different color)
+                const size = 16; // Same size as other players for precision
+                const offset = size/2; 
+                
+                // Get user initials (same function as for other players)
+                const getInitials = (name: string) => {
+                  if (!name) return '?';
+                  const words = name.trim().split(' ');
+                  if (words.length === 1) {
+                    return words[0].substring(0, 2).toUpperCase();
+                  } else {
+                    return words.slice(0, 2).map(w => w[0]).join('').toUpperCase();
+                  }
+                };
+                
+                // Check if current user is highlighted (when they highlight themselves in leaderboard)
+                const isOwnUserHighlighted = highlightedUser && scoreboard?.find(s => 
+                  s.user === highlightedUser && userId && (s.userId === userId || s.user === userId)
+                );
+                const shouldHighlight = isOwnUserHighlighted;
+                
+                return (
+                  <div key={'g'+g.index} 
+                    style={{
+                      position:'absolute',
+                      left:imgOffset.x + g.x*scale-offset,
+                      top:imgOffset.y + g.y*scale-offset,
+                      width:size,
+                      height:size,
+                      borderRadius:size/2,
+                      background:'#ff4fa3', // Keep distinctive pink color for own guesses
+                      border: shouldHighlight ? '3px solid #ff6600' : '2px solid #fff',
+                      display:'flex',
+                      alignItems:'center',
+                      justifyContent:'center',
+                      fontSize:7, // Same font size as other players
+                      fontWeight:700,
+                      color:'white', // White text like other players
+                      boxShadow: shouldHighlight ? '0 0 0 2px #ff6600, 0 0 8px rgba(255,102,0,0.3)' : '0 0 0 1px #3a0c21',
+                      transform: shouldHighlight ? 'scale(1.3)' : 'scale(1)', // Same scaling as others
+                      zIndex: shouldHighlight ? 15 : 5,
+                      transition: 'all 0.2s ease'
+                    }}
+                    title={`Dein Tipp ${g.index + 1}`}
+                  >
+                    {getInitials(username || '?')}
+                  </div>
+                );
+              }
             })}
           </div>
-          {!result && canPlay && <p className="hint">Klicke ins Bild um {puzzle.pointsCount - guesses.length} weitere Punkte zu raten.</p>}
+          {!result && canPlay && (
+            <p className="hint">
+              {usePuzzlePieces 
+                ? `Klicke ins Bild um ${puzzle.pointsCount - guesses.length} weitere Puzzle-Stücke zu platzieren.`
+                : `Klicke ins Bild um ${puzzle.pointsCount - guesses.length} weitere Punkte zu raten.`
+              }
+            </p>
+          )}
           {!result && isViewMode && <p className="hint">🔍 <strong>Ansichtsmodus</strong> - Du hast dieses Puzzle bereits gespielt. Deine Tipps und die Lösung werden angezeigt.</p>}
           {result && solution && <p className="hint">Auflösung angezeigt – Original lädt {originalUrl? 'fertig':'...'}.</p>}
           {canPlay && (
             <div className="btn-row">
               <button onClick={()=> setGuesses(g=>g.slice(0,-1))} disabled={!guesses.length || !!result}>Zurück</button>
               <button onClick={()=> setGuesses([])} disabled={!guesses.length || !!result}>Reset</button>
+              {!isViewMode && (
+                <button 
+                  onClick={togglePiecesMode} 
+                  disabled={!!result || loadingPieces}
+                  style={{ 
+                    background: usePuzzlePieces ? '#22c55e' : '#ff6600', 
+                    fontWeight: 'bold' 
+                  }}
+                  title={usePuzzlePieces ? "Zurück zu Bubbles" : "Puzzle-Stücke verwenden"}
+                >
+                  {loadingPieces ? '⏳' : usePuzzlePieces ? '🎯 Bubbles' : '🧩 Pieces'}
+                </button>
+              )}
               <button onClick={submit} disabled={!accessToken || guesses.length !== puzzle.pointsCount || !!result}>Absenden</button>
             </div>
           )}

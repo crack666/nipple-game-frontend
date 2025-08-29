@@ -139,7 +139,7 @@ export function App() {
           {tab==='play' && (
             <>
               {playingId ? (
-                <PlayPuzzle id={playingId} accessToken={accessToken} userId={user.id} onClose={()=> { setPlayingId(null); location.hash=''; }} />
+                <PlayPuzzle id={playingId} accessToken={accessToken} userId={user.id} username={user.username} onClose={()=> { setPlayingId(null); location.hash=''; }} />
               ) : (
                 <div className="card"><p className="hint">Zufälliges Puzzle wird geladen...</p></div>
               )}

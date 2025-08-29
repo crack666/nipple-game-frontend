@@ -29,6 +29,15 @@ export const api = {
     if (token) headers['Authorization'] = 'Bearer ' + token;
     return fetch(BASE + '/puzzles/' + id, { headers, credentials: 'include' }).then(r=>r.json());
   },
+  getPuzzlePieces: (id: string, token: string) => {
+    return fetch(BASE + '/puzzles/' + id + '/pieces', { 
+      headers: { 'Authorization': 'Bearer ' + token }, 
+      credentials: 'include' 
+    }).then(async r => {
+      if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error || 'pieces_failed');
+      return r.json();
+    });
+  },
   attemptPuzzle: (token: string, id: string, guesses: any[]) => fetch(BASE + '/puzzles/' + id + '/attempt', { method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+token }, body: JSON.stringify({ guesses }) }).then(async r=>{ if(!r.ok) throw new Error((await r.json().catch(()=>({})))?.error || 'attempt_failed'); return r.json(); }),
   attempts: (id: string, token?: string) => {
     const headers: Record<string,string> = {};
