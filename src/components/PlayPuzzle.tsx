@@ -34,6 +34,11 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
   const [pieces, setPieces] = useState<any[]>([]); // Available puzzle pieces
   const [loadingPieces, setLoadingPieces] = useState(false);
   
+  // Drag & Drop state
+  const [draggedPiece, setDraggedPiece] = useState<{index: number, offset: {x: number, y: number}} | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [wasJustDragging, setWasJustDragging] = useState(false);
+  
   // Determine if we're in view mode (puzzle already attempted by this user)
   const isViewMode = Boolean(puzzle?.attempt);
   const canPlay = accessToken && !isViewMode;
@@ -144,6 +149,98 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
       setGuesses(gs => [...gs, { x, y, index: nextPieceIndex }]);
     }
   };
+
+  // Drag & Drop handlers for pieces
+  const handlePieceMouseDown = (e: React.MouseEvent, guessIndex: number) => {
+    if (!canPlay || !usePuzzlePieces) return;
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const rect = e.currentTarget.getBoundingClientRect();
+    const offset = {
+      x: e.clientX - rect.left - rect.width / 2,
+      y: e.clientY - rect.top - rect.height / 2
+    };
+    
+    setDraggedPiece({ index: guessIndex, offset });
+    setIsDragging(true);
+  };
+
+  const handlePieceTouchStart = (e: React.TouchEvent, guessIndex: number) => {
+    if (!canPlay || !usePuzzlePieces) return;
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const touch = e.touches[0];
+    const rect = e.currentTarget.getBoundingClientRect();
+    const offset = {
+      x: touch.clientX - rect.left - rect.width / 2,
+      y: touch.clientY - rect.top - rect.height / 2
+    };
+    
+    setDraggedPiece({ index: guessIndex, offset });
+    setIsDragging(true);
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!draggedPiece || !imgRef.current) return;
+    
+    const imgRect = imgRef.current.getBoundingClientRect();
+    const x = Math.round((e.clientX - imgRect.left - draggedPiece.offset.x) / scale);
+    const y = Math.round((e.clientY - imgRect.top - draggedPiece.offset.y) / scale);
+    
+    // Keep within bounds
+    if (x < 0 || y < 0 || x > natural.w || y > natural.h) return;
+    
+    setGuesses(gs => gs.map(g => 
+      g.index === draggedPiece.index ? { ...g, x, y } : g
+    ));
+  };
+
+  const handleTouchMove = (e: TouchEvent) => {
+    if (!draggedPiece || !imgRef.current) return;
+    e.preventDefault();
+    
+    const touch = e.touches[0];
+    const imgRect = imgRef.current.getBoundingClientRect();
+    const x = Math.round((touch.clientX - imgRect.left - draggedPiece.offset.x) / scale);
+    const y = Math.round((touch.clientY - imgRect.top - draggedPiece.offset.y) / scale);
+    
+    // Keep within bounds
+    if (x < 0 || y < 0 || x > natural.w || y > natural.h) return;
+    
+    setGuesses(gs => gs.map(g => 
+      g.index === draggedPiece.index ? { ...g, x, y } : g
+    ));
+  };
+
+  const handleDragEnd = () => {
+    setDraggedPiece(null);
+    setIsDragging(false);
+    setWasJustDragging(true);
+    
+    // Reset the wasJustDragging flag after a short delay to prevent click
+    setTimeout(() => {
+      setWasJustDragging(false);
+    }, 100);
+  };
+
+  // Add global event listeners for drag operations
+  useEffect(() => {
+    if (!draggedPiece) return;
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleDragEnd);
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('touchend', handleDragEnd);
+    
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleDragEnd);
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleDragEnd);
+    };
+  }, [draggedPiece, scale, natural.w, natural.h]);
   // Recalculate scale when original image replaces masked (could differ in intrinsic size)
   useEffect(()=>{ if (originalUrl) setTimeout(()=> recalcScale(), 50); }, [originalUrl]);
   // Also update offset/scale on scroll (layout shifts)
@@ -450,6 +547,7 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
                 // Scale piece size according to current image scale
                 const scaledPieceWidth = piece.width * scale;
                 const scaledPieceHeight = piece.height * scale;
+                const beingDragged = draggedPiece?.index === g.index;
                 
                 return (
                   <div
@@ -460,19 +558,27 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
                       top: imgOffset.y + g.y * scale - scaledPieceHeight / 2,
                       width: scaledPieceWidth,
                       height: scaledPieceHeight,
-                      cursor: 'pointer',
+                      cursor: beingDragged ? 'grabbing' : 'grab',
                       borderRadius: '50%', // Make pieces circular
                       overflow: 'hidden', // Hide corners for circular effect
-                      zIndex: 10,
-                      transition: 'transform 0.2s ease',
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.3)' // Subtle shadow for better visibility
+                      zIndex: beingDragged ? 20 : 10,
+                      transition: beingDragged ? 'none' : 'transform 0.2s ease',
+                      transform: beingDragged ? 'scale(1.1)' : 'scale(1)',
+                      boxShadow: beingDragged 
+                        ? '0 8px 16px rgba(0,0,0,0.5)' 
+                        : '0 2px 4px rgba(0,0,0,0.3)',
+                      opacity: beingDragged ? 0.9 : 1
                     }}
+                    onMouseDown={(e) => handlePieceMouseDown(e, g.index)}
+                    onTouchStart={(e) => handlePieceTouchStart(e, g.index)}
                     onClick={(e) => {
-                      e.stopPropagation();
-                      // Remove this guess
-                      setGuesses(gs => gs.filter(guess => guess.index !== g.index));
+                      // Only remove on click if we weren't dragging
+                      if (!isDragging && !wasJustDragging) {
+                        e.stopPropagation();
+                        setGuesses(gs => gs.filter(guess => guess.index !== g.index));
+                      }
                     }}
-                    title={`Piece ${g.index + 1} - Klicken zum Entfernen`}
+                    title={`Piece ${g.index + 1} - Drag zum Verschieben, Klick zum Entfernen`}
                   >
                     <img
                       src={piece.imageData}
