@@ -96,8 +96,14 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
     const availH = window.innerHeight - chrome;
     const s = Math.min(areaW / natural.w, availH / natural.h, 1); // don't upscale beyond 1
     setScale(s);
-    setContainerSize({ w: Math.round(natural.w * s), h: Math.round(natural.h * s) });
-    setImgOffset({ x:0, y:0 });
+    
+    // Calculate actual container size and potential image offset for centering
+    const scaledW = Math.round(natural.w * s);
+    const scaledH = Math.round(natural.h * s);
+    setContainerSize({ w: scaledW, h: scaledH });
+    
+    // Since we now set container to exact scaled image size, no offset needed
+    setImgOffset({ x: 0, y: 0 });
     setMaxImgHeight(availH > 300 ? availH : undefined);
   };
   useEffect(()=>{
@@ -158,10 +164,20 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
     e.preventDefault();
     e.stopPropagation();
     
+    // Get the piece to calculate proper offset based on its actual scaled size
+    const guess = guesses.find(g => g.index === guessIndex);
+    if (!guess) return;
+    
+    const piece = pieces[guess.index];
+    if (!piece) return;
+    
+    const scaledPieceWidth = piece.width * scale;
+    const scaledPieceHeight = piece.height * scale;
+    
     const rect = e.currentTarget.getBoundingClientRect();
     const offset = {
-      x: e.clientX - rect.left - rect.width / 2,
-      y: e.clientY - rect.top - rect.height / 2
+      x: e.clientX - rect.left - scaledPieceWidth / 2,
+      y: e.clientY - rect.top - scaledPieceHeight / 2
     };
     
     setDraggedPiece({ index: guessIndex, offset });
@@ -173,11 +189,21 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
     e.preventDefault();
     e.stopPropagation();
     
+    // Get the piece to calculate proper offset based on its actual scaled size
+    const guess = guesses.find(g => g.index === guessIndex);
+    if (!guess) return;
+    
+    const piece = pieces[guess.index];
+    if (!piece) return;
+    
+    const scaledPieceWidth = piece.width * scale;
+    const scaledPieceHeight = piece.height * scale;
+    
     const touch = e.touches[0];
     const rect = e.currentTarget.getBoundingClientRect();
     const offset = {
-      x: touch.clientX - rect.left - rect.width / 2,
-      y: touch.clientY - rect.top - rect.height / 2
+      x: touch.clientX - rect.left - scaledPieceWidth / 2,
+      y: touch.clientY - rect.top - scaledPieceHeight / 2
     };
     
     setDraggedPiece({ index: guessIndex, offset });
@@ -308,8 +334,8 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
     } else {
       // Switching back to bubbles mode
       setUsePuzzlePieces(false);
-      // Clear any pieces that were loaded to save memory
-      setPieces([]);
+      // Don't clear pieces array - keep them loaded for potential return to pieces mode
+      // setPieces([]); // Removed to prevent piece disappearing
     }
   };
 
@@ -319,6 +345,7 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
   // Auto-load pieces when component mounts and we're in play mode with pieces enabled
   useEffect(() => {
     if (puzzle && canPlay && usePuzzlePieces && pieces.length === 0 && !loadingPieces) {
+      console.log('Auto-loading pieces for puzzle:', puzzle.id);
       loadPuzzlePieces();
     }
   }, [puzzle, canPlay, usePuzzlePieces, pieces.length, loadingPieces]);
@@ -565,9 +592,13 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
               if (usePuzzlePieces && pieces.length > 0 && canPlay && !isViewMode) {
                 // Render as puzzle piece (only during active gameplay)
                 const piece = pieces[g.index];
-                if (!piece) return null;
+                if (!piece) {
+                  console.warn(`Piece not found for guess index ${g.index}, pieces array length: ${pieces.length}`);
+                  return null;
+                }
                 
                 // Scale piece size according to current image scale
+                // WICHTIG: Keine Mindestgröße verwenden - das zerstört die Positionierung!
                 const scaledPieceWidth = piece.width * scale;
                 const scaledPieceHeight = piece.height * scale;
                 const beingDragged = draggedPiece?.index === g.index;
