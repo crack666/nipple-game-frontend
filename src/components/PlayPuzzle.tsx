@@ -30,7 +30,7 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
   const [showWorstTips, setShowWorstTips] = useState(true); // Show 3 worst tips  
   const [showAllOthers, setShowAllOthers] = useState(false); // Show all other tips
   const [highlightedUser, setHighlightedUser] = useState<string | null>(null); // For highlighting specific user's guesses
-  const [usePuzzlePieces, setUsePuzzlePieces] = useState(false); // Toggle between piece mode and click mode
+  const [usePuzzlePieces, setUsePuzzlePieces] = useState(true); // Pieces mode is now default for optimal UX
   const [pieces, setPieces] = useState<any[]>([]); // Available puzzle pieces
   const [loadingPieces, setLoadingPieces] = useState(false);
   
@@ -90,7 +90,9 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
   const recalcScale = () => {
     if (!natural.w || !natural.h) return;
     const areaW = areaRef.current?.clientWidth || window.innerWidth;
-    const chrome = 260; // UI chrome estimate
+    // Mobile-optimized chrome calculation
+    const isMobile = window.innerWidth <= 768;
+    const chrome = isMobile ? 80 : 120; // Less chrome on mobile since controls are sticky
     const availH = window.innerHeight - chrome;
     const s = Math.min(areaW / natural.w, availH / natural.h, 1); // don't upscale beyond 1
     setScale(s);
@@ -314,6 +316,13 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
   // Auto reveal original+solution after submission when already have result (backend returns attempt) but no solution yet
   useEffect(()=>{ if (puzzle && result && !solution && puzzle.solutionPoints) { setSolution(puzzle.solutionPoints); if (accessToken) { api.original(accessToken, puzzle.id).then(o=> setOriginalUrl(o.dataUrl)).catch(()=>{}); } } }, [puzzle, result, solution, accessToken]);
 
+  // Auto-load pieces when component mounts and we're in play mode with pieces enabled
+  useEffect(() => {
+    if (puzzle && canPlay && usePuzzlePieces && pieces.length === 0 && !loadingPieces) {
+      loadPuzzlePieces();
+    }
+  }, [puzzle, canPlay, usePuzzlePieces, pieces.length, loadingPieces]);
+
   // Firework effects: per-point (>=90) + overall accuracy (>85%) (trigger once)
   const firedRef = useRef(false);
   useEffect(()=>{
@@ -405,16 +414,30 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
   };
 
   return (
-    <div className="card">
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-        <h2>Spielen</h2>
-        <button onClick={onClose}>Schließen</button>
-      </div>
-      {puzzle?.createdByUsername && (
-        <div style={{marginBottom:'0.5rem', padding:'0.25rem 0.5rem', background:'rgba(34,197,94,0.1)', borderRadius:'6px', fontSize:'0.85rem', color:'#22c55e'}}>
-          👤 Erstellt von: <strong>{puzzle.createdByUsername}</strong>
-        </div>
-      )}
+    <div className="card play-puzzle-card">
+      {/* Compact close button */}
+      <button 
+        onClick={onClose} 
+        style={{
+          position: 'absolute',
+          top: '0.5rem',
+          right: '0.5rem',
+          background: 'rgba(255,255,255,0.1)',
+          border: '1px solid rgba(255,255,255,0.2)',
+          borderRadius: '50%',
+          width: '2rem',
+          height: '2rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '1rem',
+          cursor: 'pointer',
+          zIndex: 10
+        }}
+        title="Schließen"
+      >
+        ×
+      </button>
       {loading && <div className="hint">lädt...</div>}
       {error && <div className="error-box">{getErrorMessage(error)}</div>}
       {puzzle && (
@@ -654,24 +677,34 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
           )}
           {!result && isViewMode && <p className="hint">🔍 <strong>Ansichtsmodus</strong> - Du hast dieses Puzzle bereits gespielt. Deine Tipps und die Lösung werden angezeigt.</p>}
           {result && solution && <p className="hint">Auflösung angezeigt – Original lädt {originalUrl? 'fertig':'...'}.</p>}
+          
+          {/* Sticky Controls for Mobile - Always visible without scrolling */}
           {canPlay && (
-            <div className="btn-row">
-              <button onClick={()=> setGuesses(g=>g.slice(0,-1))} disabled={!guesses.length || !!result}>Zurück</button>
-              <button onClick={()=> setGuesses([])} disabled={!guesses.length || !!result}>Reset</button>
-              {!isViewMode && (
+            <div className="play-controls-sticky">
+              <div className="controls-content">
+                <button onClick={()=> setGuesses(g=>g.slice(0,-1))} disabled={!guesses.length || !!result}>↩</button>
+                <button onClick={()=> setGuesses([])} disabled={!guesses.length || !!result}>🗑</button>
+                {!isViewMode && (
+                  <button 
+                    onClick={togglePiecesMode} 
+                    disabled={!!result || loadingPieces}
+                    style={{ 
+                      background: usePuzzlePieces ? '#22c55e' : '#ff6600', 
+                      fontWeight: 'bold' 
+                    }}
+                    title={usePuzzlePieces ? "Zurück zu Bubbles" : "Puzzle-Stücke verwenden"}
+                  >
+                    {loadingPieces ? '⏳' : usePuzzlePieces ? '🎯' : '🧩'}
+                  </button>
+                )}
                 <button 
-                  onClick={togglePiecesMode} 
-                  disabled={!!result || loadingPieces}
-                  style={{ 
-                    background: usePuzzlePieces ? '#22c55e' : '#ff6600', 
-                    fontWeight: 'bold' 
-                  }}
-                  title={usePuzzlePieces ? "Zurück zu Bubbles" : "Puzzle-Stücke verwenden"}
+                  onClick={submit} 
+                  disabled={!accessToken || guesses.length !== puzzle.pointsCount || !!result}
+                  className="submit-btn"
                 >
-                  {loadingPieces ? '⏳' : usePuzzlePieces ? '🎯 Bubbles' : '🧩 Pieces'}
+                  ✓ Absenden
                 </button>
-              )}
-              <button onClick={submit} disabled={!accessToken || guesses.length !== puzzle.pointsCount || !!result}>Absenden</button>
+              </div>
             </div>
           )}
       {result && (
@@ -771,6 +804,13 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
                   📱 <strong>Mobile:</strong> Tippe auf einen Spieler um seine Tipps zu markieren
                 </div>
               )}
+            </div>
+          )}
+          
+          {/* Creator info moved to bottom for space efficiency */}
+          {puzzle?.createdByUsername && (
+            <div style={{marginTop:'1rem', padding:'0.25rem 0.5rem', background:'rgba(34,197,94,0.1)', borderRadius:'6px', fontSize:'0.85rem', color:'#22c55e', textAlign:'center'}}>
+              👤 Erstellt von: <strong>{puzzle.createdByUsername}</strong>
             </div>
           )}
         </div>

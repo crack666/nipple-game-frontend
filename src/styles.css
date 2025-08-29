@@ -69,4 +69,84 @@ label { font-size:.75rem; display:flex; flex-direction:column; gap:.35rem; font-
 /* Play view image sizing to avoid vertical overflow */
 .play-img { width:100%; height:auto; object-fit:contain; }
 
-@media (max-width:640px){ .app-shell{padding:.9rem;} .card{padding:1rem 1.05rem 1.2rem;} }
+/* Mobile-optimized play puzzle layout */
+.play-puzzle-card {
+  position: relative;
+  padding: 0.5rem 0.75rem 1rem !important; /* Less padding for more space */
+}
+
+/* Sticky controls for mobile - always visible at bottom */
+.play-controls-sticky {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(31, 36, 45, 0.95);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--border);
+  padding: 0.75rem;
+  z-index: 1000;
+  box-shadow: 0 -4px 12px rgba(0,0,0,0.3);
+}
+
+.controls-content {
+  display: flex;
+  gap: 0.5rem;
+  max-width: 1380px;
+  margin: 0 auto;
+  align-items: center;
+  justify-content: center;
+}
+
+.controls-content button {
+  padding: 0.6rem 0.8rem;
+  font-size: 0.8rem;
+  border-radius: 8px;
+  min-width: 2.5rem;
+  flex-shrink: 0;
+}
+
+.submit-btn {
+  background: linear-gradient(135deg, #22c55e, #16a34a) !important;
+  font-weight: bold !important;
+  font-size: 0.9rem !important;
+  padding: 0.7rem 1.2rem !important;
+  flex-grow: 1;
+  max-width: 8rem;
+}
+
+/* Adjust card spacing for mobile when controls are sticky */
+@media (max-width: 768px) {
+  .play-puzzle-card {
+    margin-bottom: 5rem; /* Space for sticky controls */
+    padding: 0.25rem 0.5rem 0.5rem !important;
+  }
+  
+  .play-controls-sticky {
+    padding: 0.5rem;
+  }
+  
+  .controls-content {
+    gap: 0.4rem;
+  }
+  
+  .controls-content button {
+    padding: 0.5rem 0.6rem;
+    font-size: 0.75rem;
+    min-width: 2.2rem;
+  }
+  
+  .submit-btn {
+    font-size: 0.8rem !important;
+    padding: 0.6rem 1rem !important;
+  }
+}
+
+@media (max-width:640px){ 
+  .app-shell{padding:.9rem;} 
+  .card{padding:1rem 1.05rem 1.2rem;} 
+  .app-header .btn-row button {
+    padding: 0.3rem 0.6rem !important;
+    font-size: 0.7rem !important;
+  }
+}

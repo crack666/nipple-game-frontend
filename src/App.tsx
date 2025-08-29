@@ -91,7 +91,18 @@ export function App() {
     <div className="app-shell">
       <header className="app-header">
         <h1>Bild Rätsel</h1>
-        <div className="status-pill" data-state={health}>{health}</div>
+        <div style={{display:'flex', alignItems:'center', gap:'1rem'}}>
+          {user && (
+            <>
+              <span style={{fontWeight:500}}>{user.username}</span>
+              <div className="btn-row" style={{margin:0, gap:'0.5rem'}}>
+                <button onClick={refresh} style={{padding:'0.4rem 0.8rem', fontSize:'0.75rem'}}>Refresh</button>
+                <button onClick={logout} style={{padding:'0.4rem 0.8rem', fontSize:'0.75rem'}}>Logout</button>
+              </div>
+            </>
+          )}
+          <div className="status-pill" data-state={health}>{health}</div>
+        </div>
       </header>
       {!user && (
         <div className="card auth-card">
@@ -114,16 +125,6 @@ export function App() {
       )}
       {user && (
         <>
-          <div className="card user-card">
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12}}>
-              <div><strong>{user.username}</strong></div>
-              <div className="btn-row" style={{margin:0}}>
-                <button onClick={refresh}>Refresh</button>
-                <button onClick={logout}>Logout</button>
-              </div>
-            </div>
-            <p className="token-preview">Access: {accessToken?.slice(0,18)}...</p>
-          </div>
           <TabsLayout active={tab} onChange={(k)=> setTab(k as any)} tabs={[
             { key:'home', label:'Home' },
             { key:'play', label:'Spielen' },
