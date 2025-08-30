@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { api } from '../api/client';
 
-interface PuzzleMeta { id:string; width:number; height:number; blackout:{x:number,y:number,w:number,h:number}; grid:{cols:number;rows:number}; image:string; pointsCount:number; attempt?: any; solutionPoints?: any[]; createdBy?:string; createdByUsername?:string }
+interface PuzzleMeta { id:string; width:number; height:number; blackout:{x:number,y:number,w:number,h:number}; pieceSize?:number; image:string; pointsCount:number; attempt?: any; solutionPoints?: any[]; createdBy?:string; createdByUsername?:string }
 interface Guess { x:number; y:number; index:number }
 
 export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:string; accessToken:string|null; userId?:string; username?:string; onClose:()=>void }) {
@@ -390,23 +390,15 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
   // Calculate optimal piece size based on current viewport and scale
   const calculateOptimalPieceSize = useCallback(() => {
     if (!natural.w || !natural.h || !scale) return 32;
-    
-    // Mindest-Piece-Größe für Bedienbarkeit (24px angezeigt)
-    const minDisplaySize = 24;
-    
-    // Berechne was Standard-32px Pieces aktuell wären
-    const standardPieceScaled = 32 * scale;
-    
-    // Falls zu klein, berechne benötigte Original-Größe für minDisplaySize
-    if (standardPieceScaled < minDisplaySize) {
-      const requiredSize = Math.ceil(minDisplaySize / scale);
-      // Runde auf 8er-Schritte für konsistente Backend-Generierung
-      return Math.ceil(requiredSize / 8) * 8;
+    const base = puzzle?.pieceSize || 32;
+    const minDisplaySize = 24; // Mindest sichtbare Größe
+    const baseScaled = base * scale;
+    if (baseScaled < minDisplaySize) {
+      const required = Math.ceil(minDisplaySize / scale);
+      return Math.min(128, Math.max(16, Math.ceil(required/2)*2));
     }
-    
-    // Falls Standard groß genug, verwende 32px
-    return 32;
-  }, [natural.w, natural.h, scale]);
+    return Math.min(128, Math.max(16, base));
+  }, [natural.w, natural.h, scale, puzzle?.pieceSize]);
 
   // Load puzzle pieces with optimal size
   const loadPuzzlePieces = useCallback(async (targetPieceSize?: number) => {

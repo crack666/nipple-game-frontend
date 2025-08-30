@@ -9,7 +9,8 @@ export function CreatePuzzle({ accessToken, onCreated }: Props) {
   const [points, setPoints] = useState<Point[]>([]);
   // Blackout & Punkte immer in natürlichen Bildkoordinaten speichern
   const [blackout, setBlackout] = useState({ x:0, y:0, w:100, h:100 });
-  const [grid, setGrid] = useState({ cols:10, rows:10 });
+  // Entfernt: Grid (nicht mehr genutzt)
+  const [pieceSize, setPieceSize] = useState(32); // Basis-Piecegröße (unskaliert serverseitig)
   const [status, setStatus] = useState<string>('');
   const [error, setError] = useState<string>('');
   const imgRef = useRef<HTMLImageElement|null>(null);
@@ -51,7 +52,7 @@ export function CreatePuzzle({ accessToken, onCreated }: Props) {
     if (!file) return;
     setStatus('Uploading...'); setError('');
     try {
-  const meta = { blackout: { x: Math.round(blackout.x), y: Math.round(blackout.y), w: Math.round(blackout.w), h: Math.round(blackout.h) }, points, gridCols: grid.cols, gridRows: grid.rows };
+  const meta = { blackout: { x: Math.round(blackout.x), y: Math.round(blackout.y), w: Math.round(blackout.w), h: Math.round(blackout.h) }, points, pieceSize: Math.round(pieceSize) };
       const res = await api.createPuzzle(accessToken, file, meta);
       setStatus('Erstellt: ' + res.id);
       onCreated?.(res.id);
@@ -221,13 +222,8 @@ export function CreatePuzzle({ accessToken, onCreated }: Props) {
   const removeLastPoint = () => { setPoints(p=>{ const np = p.slice(0,-1); if (!np.length) manualBlackoutRef.current = false; return np; }); };
   const resetPoints = () => { setPoints([]); manualBlackoutRef.current = false; };
 
-  const pointSize = (():number=>{
-    // Größer auf kleinen Displays (wenn Scale klein -> Bild war groß & verkleinert)
-    if (scale < 0.5) return 28;
-    if (scale < 0.75) return 24;
-    if (scale < 1) return 20;
-    return 18;
-  })();
+  // Punkt-/Bubble-Größe dynamisch basierend auf pieceSize Auswahl (skaliert mit Anzeige-scale)
+  const pointSize = Math.max(12, Math.min(160, pieceSize * scale));
   useEffect(()=>{
     window.addEventListener('resize', recalcScale);
     return ()=> window.removeEventListener('resize', recalcScale);
@@ -238,13 +234,11 @@ export function CreatePuzzle({ accessToken, onCreated }: Props) {
       <h2>Neues Puzzle</h2>
       <div className="form-grid">
         <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,image/bmp,image/tiff" onChange={e=> e.target.files && onFile(e.target.files[0])} />
-        <div className="btn-row" style={{flexWrap:'wrap'}}>
-          <label style={{flex:'1 1 auto'}}>Grid C
-            <input type="number" min={2} max={100} value={grid.cols} onChange={e=>setGrid(g=>({...g, cols:+e.target.value}))} />
+        <div className="btn-row" style={{flexWrap:'wrap', alignItems:'center'}}>
+          <label style={{flex:'1 1 100%'}}>Piece Größe: {pieceSize}px
+            <input type="range" min={16} max={128} step={2} value={pieceSize} onChange={e=> setPieceSize(+e.target.value)} />
           </label>
-          <label style={{flex:'1 1 auto'}}>Grid R
-            <input type="number" min={2} max={100} value={grid.rows} onChange={e=>setGrid(g=>({...g, rows:+e.target.value}))} />
-          </label>
+          <small style={{opacity:.6}}>Diese Basisgröße wird gespeichert. Spieler sehen eine proportional skalierte Variante (Responsive Scaling bleibt erhalten).</small>
         </div>
         {file && (
           <div ref={containerRef} style={{position:'relative',border:'1px solid #222',width:'100%',overflow:'hidden',cursor: pointMode ? (actionRef.current?'grabbing':'crosshair'):'default', touchAction:'none'}}
@@ -271,9 +265,9 @@ export function CreatePuzzle({ accessToken, onCreated }: Props) {
               </div>
             )}
             {points.map((p,i)=>{
-              const size = pointSize; const offset = size/2 + 0; // zentrieren
+              const size = pointSize; const offset = size/2; // zentrieren
               return (
-                <div key={i} title={`#${i}`} style={{position:'absolute',left:p.x*scale-offset+1,top:p.y*scale-offset+1,width:size,height:size,borderRadius:Math.max(10,size/2),background:'#4f9cff',border:'2px solid #fff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:Math.max(10, size*0.45),fontWeight:700,color:'#0f1115',boxShadow:'0 0 0 1px #062446'}}>{i+1}</div>
+                <div key={i} title={`#${i}`} style={{position:'absolute',left:p.x*scale-offset,top:p.y*scale-offset,width:size,height:size,borderRadius:size/2,background:'rgba(0,0,0,0.1)',border:'2px solid #ffae00',display:'flex',alignItems:'center',justifyContent:'center',fontSize:Math.max(10, size*0.35),fontWeight:600,color:'#ffae00',boxShadow:'0 0 0 1px #000'}}>{i+1}</div>
               );
             })}
           </div>
