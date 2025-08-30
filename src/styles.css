@@ -25,7 +25,7 @@ button { cursor:pointer; background: linear-gradient(135deg,#1870ff,#4297ff); bo
 button:hover { filter:brightness(1.08); }
 button:active { transform:translateY(1px); }
 button:disabled { opacity:.4; cursor:default; }
-input { width:100%; padding:.6rem .75rem; border-radius:10px; background:#10141a; border:1px solid #222832; color:var(--text); font-size:.9rem; }
+input { width:100%; padding:.6rem 0rem; border-radius:10px; background:#10141a; border:1px solid #222832; color:var(--text); font-size:.9rem; }
 input:focus { outline:2px solid #1f64ff; outline-offset:2px; }
 label { font-size:.75rem; display:flex; flex-direction:column; gap:.35rem; font-weight:500; text-transform:uppercase; letter-spacing:.5px; }
 .form-grid { display:flex; flex-direction:column; gap:.85rem; }
@@ -68,6 +68,14 @@ label { font-size:.75rem; display:flex; flex-direction:column; gap:.35rem; font-
 
 /* Play view image sizing to avoid vertical overflow */
 .play-img { width:100%; height:auto; object-fit:contain; }
+
+/* Puzzle piece image fixes for mobile devices */
+.puzzle-piece-img {
+  object-fit: cover !important;
+  image-rendering: -webkit-optimize-contrast; /* Better rendering on mobile */
+  image-rendering: crisp-edges; /* Prevent blurry upscaling */
+  image-rendering: pixelated; /* Fallback for older browsers */
+}
 
 /* Mobile-optimized play puzzle layout */
 .play-puzzle-card {

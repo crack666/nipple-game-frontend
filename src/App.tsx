@@ -59,14 +59,41 @@ export function App() {
     e.preventDefault();
     setError(null);
     setLoading(true);
+    
+    // Trimming für bessere UX
+    const trimmedUsername = username.trim();
+    const trimmedPassword = password.trim();
+    
+    // Einfache Client-side Validation
+    if (trimmedUsername.length < 3) {
+      setError('Benutzername muss mindestens 3 Zeichen lang sein');
+      setLoading(false);
+      return;
+    }
+    if (!/^[a-zA-Z0-9_-]+$/.test(trimmedUsername)) {
+      setError('Benutzername darf nur Buchstaben, Zahlen, _ und - enthalten');
+      setLoading(false);
+      return;
+    }
+    if (trimmedPassword.length < 6) {
+      setError('Passwort muss mindestens 6 Zeichen lang sein');
+      setLoading(false);
+      return;
+    }
+    
     try {
-      const res = mode === 'login' ? await api.login(username, password) : await api.register(username, password);
+      const res = mode === 'login' 
+        ? await api.login(trimmedUsername, trimmedPassword) 
+        : await api.register(trimmedUsername, trimmedPassword);
       setAccessToken(res.accessToken);
       setUser(res.user);
       setPassword('');
+      setUsername(''); // Username auch leeren für nächste Verwendung
     } catch (err: any) {
       setError(err?.message || 'Fehler');
-    } finally { setLoading(false); }
+    } finally { 
+      setLoading(false); 
+    }
   }
 
   async function refresh() {
@@ -112,7 +139,15 @@ export function App() {
           </div>
           <form onSubmit={submit} className="form-grid">
             <label>Benutzername
-              <input value={username} onChange={e=>setUsername(e.target.value)} autoComplete="username" required />
+              <input 
+                value={username} 
+                onChange={e=>setUsername(e.target.value)} 
+                autoComplete="username" 
+                pattern="[a-zA-Z0-9_-]+"
+                title="Nur Buchstaben, Zahlen, _ und - erlaubt"
+                required 
+              />
+              <small className="hint">Nur Buchstaben, Zahlen, _ und - erlaubt</small>
             </label>
             <label>Passwort
               <input type="password" value={password} onChange={e=>setPassword(e.target.value)} autoComplete={mode==='login'? 'current-password':'new-password'} required />

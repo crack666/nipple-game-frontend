@@ -22,6 +22,7 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
   const [maxImgHeight, setMaxImgHeight] = useState<number|undefined>(undefined);
   const [imgOffset, setImgOffset] = useState({ x:0, y:0 }); // should stay 0,0 now that container matches scaled image
   const [containerSize, setContainerSize] = useState<{w:number;h:number}>({ w:0, h:0 });
+  const [scaleReady, setScaleReady] = useState(false); // verhindert Piece-Ladung vor finalem Scale
   const areaRef = useRef<HTMLDivElement|null>(null);
   // Toggle states for different marker types
   const [showSolution, setShowSolution] = useState(true);
@@ -89,13 +90,29 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
   }, [id, accessToken]);
   const recalcScale = () => {
     if (!natural.w || !natural.h) return;
-    const areaW = areaRef.current?.clientWidth || window.innerWidth;
-    // Mobile-optimized chrome calculation
-    const isMobile = window.innerWidth <= 768;
-    const chrome = isMobile ? 80 : 120; // Less chrome on mobile since controls are sticky
-    const availH = window.innerHeight - chrome;
+    
+    // Better mobile detection - check both width and user agent for accuracy
+    const isMobileWidth = window.innerWidth <= 768;
+    const isMobileUA = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const isMobile = isMobileWidth || isMobileUA;
+    
+    // Get accurate viewport dimensions
+    const visualViewport = window.visualViewport;
+    const viewportWidth = visualViewport ? visualViewport.width : window.innerWidth;
+    const viewportHeight = visualViewport ? visualViewport.height : window.innerHeight;
+    
+    // Use area width if available, otherwise viewport width
+    const areaW = areaRef.current?.clientWidth || viewportWidth;
+    
+    // More conservative chrome calculation for better mobile compatibility
+    const chrome = isMobile ? 100 : 120; // Slightly more space on mobile for better safety
+    const availH = viewportHeight - chrome;
+    
+    console.log(`Scale calc: mobile=${isMobile}, areaW=${areaW}, availH=${availH}, natural=${natural.w}x${natural.h}`);
+    
     const s = Math.min(areaW / natural.w, availH / natural.h, 1); // don't upscale beyond 1
-    setScale(s);
+  setScale(s);
+  setScaleReady(true);
     
     // Calculate actual container size and potential image offset for centering
     const scaledW = Math.round(natural.w * s);
@@ -108,21 +125,73 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
   };
   useEffect(()=>{
     const img = imgRef.current; if (!img) return;
-    const onLoad = () => { const nw = img.naturalWidth, nh = img.naturalHeight; setNatural({ w: nw, h: nh }); setTimeout(()=>recalcScale(),0); };
-    if (img.complete) onLoad(); else img.addEventListener('load', onLoad, { once:true });
+    const onLoad = () => {
+      const nw = img.naturalWidth, nh = img.naturalHeight;
+      // Direkt scale berechnen ohne Race über setTimeout
+      // (gleiche Logik wie recalcScale, aber ohne setState-Abhängigkeit von natural)
+      const isMobileWidth = window.innerWidth <= 768;
+      const isMobileUA = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const isMobile = isMobileWidth || isMobileUA;
+      const visualViewport = window.visualViewport;
+      const viewportWidth = visualViewport ? visualViewport.width : window.innerWidth;
+      const viewportHeight = visualViewport ? visualViewport.height : window.innerHeight;
+      const areaW = areaRef.current?.clientWidth || viewportWidth;
+      const chrome = isMobile ? 100 : 120;
+      const availH = viewportHeight - chrome;
+      const s = Math.min(areaW / nw, availH / nh, 1);
+      setNatural({ w: nw, h: nh });
+      setScale(s);
+      setScaleReady(true);
+      setContainerSize({ w: Math.round(nw * s), h: Math.round(nh * s) });
+      setImgOffset({ x:0, y:0 });
+      setMaxImgHeight(availH > 300 ? availH : undefined);
+      // Für spätere dynamische Änderungen normaler Flow weiter aktiv
+    };
+    if (img.complete && img.naturalWidth) onLoad(); else img.addEventListener('load', onLoad, { once:true });
+    // reset flags wenn neues Bild
+    return () => { setScaleReady(false); };
   }, [puzzle?.image]);
-  useEffect(()=>{ window.addEventListener('resize', recalcScale); return ()=> window.removeEventListener('resize', recalcScale); }, [natural.w, natural.h]);
-  useEffect(()=>{ api.attempts(id, accessToken || undefined).then(d=> { setScoreboard(d.items||[]); if (d.canSeeGuesses && d.items) {
-      const agg: any[] = [];
-      d.items.forEach((it:any)=>{ 
-        // Filter out own guesses - check both userId and username for safety
-        const isOwnUser = (userId && (it.userId === userId || it.user === userId));
-        if (it.guesses && !isOwnUser) { 
-          agg.push(...it.guesses.map((g:any)=>({...g,user:it.user}))); 
-        } 
-      });
-      setOthersGuesses(agg);
-    } }).catch(()=>{}); }, [id, result, userId, accessToken]);
+  
+  // Enhanced resize listeners for better mobile support
+  useEffect(()=>{ 
+    window.addEventListener('resize', recalcScale); 
+    
+    // Add visualViewport listener for mobile browser behavior
+    const visualViewport = window.visualViewport;
+    if (visualViewport) {
+      visualViewport.addEventListener('resize', recalcScale);
+      return () => {
+        window.removeEventListener('resize', recalcScale);
+        visualViewport.removeEventListener('resize', recalcScale);
+      };
+    }
+    
+    return () => window.removeEventListener('resize', recalcScale); 
+  }, [natural.w, natural.h]);
+  // Load attempts (scoreboard + others' guesses)
+  const loadScoreboard = useCallback(async () => {
+    try {
+      const d = await api.attempts(id, accessToken || undefined);
+      setScoreboard(d.items || []);
+      if (d.canSeeGuesses && d.items) {
+        const agg: any[] = [];
+        d.items.forEach((it:any)=>{ 
+          // Filter out own guesses - check both userId and username for safety
+          const isOwnUser = (userId && (it.userId === userId || it.user === userId));
+          if (it.guesses && !isOwnUser) { 
+            agg.push(...it.guesses.map((g:any)=>({...g,user:it.user}))); 
+          } 
+        });
+        setOthersGuesses(agg);
+      }
+    } catch {
+      // ignore
+    }
+  }, [id, result, userId, accessToken]);
+
+  useEffect(() => {
+    loadScoreboard();
+  }, [loadScoreboard]);
 
   const addGuess = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!puzzle || result || !canPlay) return; // Block if in view mode
@@ -343,6 +412,12 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
   const loadPuzzlePieces = useCallback(async (targetPieceSize?: number) => {
     if (!accessToken || !puzzle) return;
     
+    // CRITICAL: Wait for natural dimensions and scale to be calculated
+    if (!natural.w || !natural.h || !scale) {
+      console.log('Waiting for image dimensions and scale before loading pieces...');
+      return;
+    }
+    
     try {
       setLoadingPieces(true);
       
@@ -382,37 +457,76 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
   // Auto reveal original+solution after submission when already have result (backend returns attempt) but no solution yet
   useEffect(()=>{ if (puzzle && result && !solution && puzzle.solutionPoints) { setSolution(puzzle.solutionPoints); if (accessToken) { api.original(accessToken, puzzle.id).then(o=> setOriginalUrl(o.dataUrl)).catch(()=>{}); } } }, [puzzle, result, solution, accessToken]);
 
-  // Auto-load pieces when component mounts and we're in play mode with pieces enabled
+  // Auto-load pieces only after image + final scale are ready
   useEffect(() => {
-    if (puzzle && canPlay && usePuzzlePieces && pieces.length === 0 && !loadingPieces && accessToken) {
-      console.log('Auto-loading pieces for puzzle:', puzzle.id);
+    if (puzzle && canPlay && usePuzzlePieces && pieces.length === 0 && !loadingPieces && accessToken && 
+        natural.w && natural.h && scaleReady) {
+      console.log('Auto-loading pieces for puzzle with correct dimensions:', puzzle.id, 'scale:', scale);
       loadPuzzlePieces();
     }
-  }, [puzzle?.id, canPlay, usePuzzlePieces, pieces.length, loadingPieces, accessToken]);
+  }, [puzzle?.id, canPlay, usePuzzlePieces, pieces.length, loadingPieces, accessToken, natural.w, natural.h, scaleReady, scale, loadPuzzlePieces]);
 
   // Responsive piece reload: reload pieces when scale changes significantly
   const lastReloadRef = useRef<number>(0);
   useEffect(() => {
-    if (!puzzle || !pieces.length || !scale || !natural.w || !natural.h || !accessToken) return;
+  if (!puzzle || !pieces.length || !scale || !natural.w || !natural.h || !accessToken) return;
+  // Falls Scale noch nicht als final markiert: nicht reloaden (verhindert Doppel-Load)
+  if (!scaleReady) return;
     
-    // Debounce: Mindestens 1 Sekunde zwischen Reloads
+    // Mobile detection for different thresholds
+    const isMobileWidth = window.innerWidth <= 768;
+    const isMobileUA = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const isMobile = isMobileWidth || isMobileUA;
+    
+    // Debounce: Less waiting on mobile since they need the correction more
+    const debounceTime = isMobile ? 1000 : 2000;
     const now = Date.now();
-    if (now - lastReloadRef.current < 1000) return;
+    if (now - lastReloadRef.current < debounceTime) return;
     
     const newOptimalSize = calculateOptimalPieceSize();
     const currentPieceSize = pieces[0]?.width || 32;
     
-    // Neu laden wenn Abweichung > 25%
+    // More aggressive reload threshold on mobile devices
+    const reloadThreshold = isMobile ? 0.20 : 0.35; // 20% for mobile, 35% for desktop
     const sizeDifference = Math.abs(newOptimalSize - currentPieceSize) / currentPieceSize;
-    const shouldReload = sizeDifference > 0.25;
+    const shouldReload = sizeDifference > reloadThreshold;
     
     if (shouldReload) {
-      console.log(`Reloading pieces: current=${currentPieceSize}px, optimal=${newOptimalSize}px, difference=${Math.round(sizeDifference * 100)}%`);
+      console.log(`Reloading pieces (mobile=${isMobile}): current=${currentPieceSize}px, optimal=${newOptimalSize}px, difference=${Math.round(sizeDifference * 100)}%`);
       lastReloadRef.current = now;
       loadPuzzlePiecesWithSize(newOptimalSize);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scale, natural.w, natural.h, puzzle?.id, accessToken]);
+  }, [scale, natural.w, natural.h, puzzle?.id, accessToken, scaleReady]);
+
+  // Debug Button: Kopiert relevante Layout-/Scaling-Infos in Zwischenablage
+  const copyDebugInfo = useCallback(() => {
+    const vv = window.visualViewport;
+    const img = imgRef.current;
+    const rect = img ? img.getBoundingClientRect() : null;
+    const firstPiece = pieces[0];
+    const info = {
+      ts: new Date().toISOString(),
+      puzzleId: puzzle?.id,
+      devicePixelRatio: window.devicePixelRatio,
+      userAgent: navigator.userAgent,
+      natural,
+      scale,
+      scaleReady,
+      containerSize,
+      maxImgHeight,
+      viewport: { innerWidth: window.innerWidth, innerHeight: window.innerHeight },
+      visualViewport: vv ? { width: vv.width, height: vv.height, scale: vv.scale, offsetLeft: vv.offsetLeft, offsetTop: vv.offsetTop } : null,
+      imageClientRect: rect ? { width: rect.width, height: rect.height, left: rect.left, top: rect.top } : null,
+      piecesMeta: { count: pieces.length, firstPieceOriginal: firstPiece ? { w: firstPiece.width, h: firstPiece.height } : null },
+      guesses: guesses.map(g => ({ index: g.index, x: g.x, y: g.y })),
+      thresholds: { mobileReload: '20%', desktopReload: '35%', debounceMobileMs: 1000, debounceDesktopMs: 2000 },
+    };
+    const text = JSON.stringify(info, null, 2);
+    navigator.clipboard.writeText(text).then(()=>{
+      console.log('Debug info copied');
+    }).catch(e=>console.warn('Clipboard failed', e));
+  }, [puzzle?.id, natural, scale, scaleReady, containerSize, maxImgHeight, pieces, guesses]);
 
   // Firework effects: per-point (>=90) + overall accuracy (>85%) (trigger once)
   const firedRef = useRef(false);
@@ -714,6 +828,7 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
                     <img
                       src={piece.imageData}
                       alt={`Piece ${g.index + 1}`}
+                      className="puzzle-piece-img"
                       style={{ 
                         width: displayPieceWidth, 
                         height: displayPieceHeight,
@@ -722,6 +837,7 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
                         top: '50%',
                         transform: 'translate(-50%, -50%)',
                         borderRadius: '50%', // Macht das Bild selbst rund
+                        objectFit: 'cover', // CRITICAL: Prevents mobile scaling issues
                         pointerEvents: 'none',
                         userSelect: 'none'
                       }}
@@ -797,6 +913,7 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
               <div className="controls-content">
                 <button onClick={()=> setGuesses(g=>g.slice(0,-1))} disabled={!guesses.length || !!result}>↩</button>
                 <button onClick={()=> setGuesses([])} disabled={!guesses.length || !!result}>🗑</button>
+                <button onClick={copyDebugInfo} style={{background:'#475569'}} title="Kopiert Layout/Scale Debug Infos">🐞</button>
                 {!isViewMode && (
                   <button 
                     onClick={togglePiecesMode} 
@@ -843,7 +960,7 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
                       if (!confirm(`Attempt von ${attempt.user} löschen?`)) return;
                       try {
                         await api.deleteAttempt(accessToken!, puzzle.id, attempt.id);
-                        window.location.reload();
+                        await loadScoreboard(); // Reload scoreboard instead of full page
                       } catch(e:any) {
                         alert(getErrorMessage(e.message) || 'Löschen fehlgeschlagen');
                       }
