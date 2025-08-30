@@ -34,6 +34,7 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
   const [usePuzzlePieces, setUsePuzzlePieces] = useState(true); // Pieces mode is now default for optimal UX
   const [pieces, setPieces] = useState<any[]>([]); // Available puzzle pieces
   const [loadingPieces, setLoadingPieces] = useState(false);
+  const pieceRetryRef = useRef<{ cooldownUntil:number; attempts:number }>({ cooldownUntil:0, attempts:0 });
   
   // Drag & Drop state
   const [draggedPiece, setDraggedPiece] = useState<{index: number, offset: {x: number, y: number}} | null>(null);
@@ -388,43 +389,41 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
   };
 
   // Calculate optimal piece size based on current viewport and scale
+  // Creator baseline piece size (no dynamic enlargement) – display scaling comes solely from image scale
   const calculateOptimalPieceSize = useCallback(() => {
-    if (!natural.w || !natural.h || !scale) return 32;
-    const base = puzzle?.pieceSize || 32;
-    const minDisplaySize = 24; // Mindest sichtbare Größe
-    const baseScaled = base * scale;
-    if (baseScaled < minDisplaySize) {
-      const required = Math.ceil(minDisplaySize / scale);
-      return Math.min(128, Math.max(16, Math.ceil(required/2)*2));
-    }
-    return Math.min(128, Math.max(16, base));
-  }, [natural.w, natural.h, scale, puzzle?.pieceSize]);
+    return puzzle?.pieceSize ? Math.min(128, Math.max(16, puzzle.pieceSize)) : 32;
+  }, [puzzle?.pieceSize]);
 
   // Load puzzle pieces with optimal size
   const loadPuzzlePieces = useCallback(async (targetPieceSize?: number) => {
     if (!accessToken || !puzzle) return;
-    
-    // CRITICAL: Wait for natural dimensions and scale to be calculated
-    if (!natural.w || !natural.h || !scale) {
-      console.log('Waiting for image dimensions and scale before loading pieces...');
+    if (Date.now() < pieceRetryRef.current.cooldownUntil) return;
+    if (!natural.w || !natural.h || !scaleReady) {
+      // defer: try again shortly once scale ready
+      setTimeout(() => { loadPuzzlePieces(targetPieceSize); }, 60);
       return;
     }
-    
     try {
       setLoadingPieces(true);
-      
-      // Calculate optimal piece size if not provided
-      const optimalPieceSize = targetPieceSize || calculateOptimalPieceSize();
-      console.log('Loading pieces with size:', optimalPieceSize);
-      
-      const data = await api.getPuzzlePieces(puzzle.id, accessToken, optimalPieceSize);
-      setPieces(data.pieces || []);
+      const baselineSize = targetPieceSize || calculateOptimalPieceSize();
+      console.log('Loading pieces with baseline size:', baselineSize, 'natural:', natural, 'scale:', scale);
+  // Request without forcing size param; backend enforces creator baseline
+  const data = await api.getPuzzlePieces(puzzle.id, accessToken);
+      console.log('Pieces response meta:', { count: data?.pieces?.length, genSize: (data as any)?.generatedPieceSize, base: (data as any)?.basePieceSize });
+      setPieces(Array.isArray(data.pieces) ? data.pieces : []);
+      pieceRetryRef.current = { cooldownUntil: 0, attempts: 0 };
     } catch (err: any) {
       console.error('Failed to load puzzle pieces:', err);
+      if (typeof err?.message === 'string' && err.message.includes('unauthorized')) {
+        pieceRetryRef.current.attempts += 1;
+        const delay = Math.min(30000, 2000 * pieceRetryRef.current.attempts);
+        pieceRetryRef.current.cooldownUntil = Date.now() + delay;
+        setUsePuzzlePieces(false);
+      }
     } finally {
       setLoadingPieces(false);
     }
-  }, [accessToken, puzzle?.id, calculateOptimalPieceSize]);
+  }, [accessToken, puzzle?.id, calculateOptimalPieceSize, natural.w, natural.h, scale, scaleReady]);
 
   // Load pieces with specific size
   const loadPuzzlePiecesWithSize = useCallback(async (size: number) => {
@@ -451,45 +450,21 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
 
   // Auto-load pieces only after image + final scale are ready
   useEffect(() => {
-    if (puzzle && canPlay && usePuzzlePieces && pieces.length === 0 && !loadingPieces && accessToken && 
-        natural.w && natural.h && scaleReady) {
-      console.log('Auto-loading pieces for puzzle with correct dimensions:', puzzle.id, 'scale:', scale);
-      loadPuzzlePieces();
-    }
+    if (!puzzle || !canPlay || !usePuzzlePieces || loadingPieces || !accessToken) return;
+    if (pieces.length > 0) return;
+    if (!natural.w || !natural.h) return;
+    if (!scaleReady) return; // will rerun when scaleReady becomes true
+    console.log('Auto-loading pieces for puzzle with correct dimensions:', puzzle.id, 'scale:', scale);
+    loadPuzzlePieces();
   }, [puzzle?.id, canPlay, usePuzzlePieces, pieces.length, loadingPieces, accessToken, natural.w, natural.h, scaleReady, scale, loadPuzzlePieces]);
 
   // Responsive piece reload: reload pieces when scale changes significantly
   const lastReloadRef = useRef<number>(0);
   useEffect(() => {
   if (!puzzle || !pieces.length || !scale || !natural.w || !natural.h || !accessToken) return;
-  // Falls Scale noch nicht als final markiert: nicht reloaden (verhindert Doppel-Load)
-  if (!scaleReady) return;
-    
-    // Mobile detection for different thresholds
-    const isMobileWidth = window.innerWidth <= 768;
-    const isMobileUA = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    const isMobile = isMobileWidth || isMobileUA;
-    
-    // Debounce: Less waiting on mobile since they need the correction more
-    const debounceTime = isMobile ? 1000 : 2000;
-    const now = Date.now();
-    if (now - lastReloadRef.current < debounceTime) return;
-    
-    const newOptimalSize = calculateOptimalPieceSize();
-    const currentPieceSize = pieces[0]?.width || 32;
-    
-    // More aggressive reload threshold on mobile devices
-    const reloadThreshold = isMobile ? 0.20 : 0.35; // 20% for mobile, 35% for desktop
-    const sizeDifference = Math.abs(newOptimalSize - currentPieceSize) / currentPieceSize;
-    const shouldReload = sizeDifference > reloadThreshold;
-    
-    if (shouldReload) {
-      console.log(`Reloading pieces (mobile=${isMobile}): current=${currentPieceSize}px, optimal=${newOptimalSize}px, difference=${Math.round(sizeDifference * 100)}%`);
-      lastReloadRef.current = now;
-      loadPuzzlePiecesWithSize(newOptimalSize);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scale, natural.w, natural.h, puzzle?.id, accessToken, scaleReady]);
+  // No reload needed: piece bitmap stays valid; only CSS scale changes with image.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scale, natural.w, natural.h, puzzle?.id, accessToken]);
 
   // Debug Button: Kopiert relevante Layout-/Scaling-Infos in Zwischenablage
   const copyDebugInfo = useCallback(() => {
@@ -759,7 +734,12 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
             {/* Player guesses - bubbles or pieces depending on mode */}
             {showOwn && guesses.map(g => { 
               // Only use pieces in active play mode (not view mode) and when pieces mode is active
-              if (usePuzzlePieces && pieces.length > 0 && canPlay && !isViewMode) {
+              if (usePuzzlePieces && canPlay && !isViewMode) {
+                if (!pieces.length) {
+                  return (
+                    <div key={'placeholder-'+g.index} style={{position:'absolute',left:imgOffset.x + g.x*scale-8,top:imgOffset.y + g.y*scale-8,width:16,height:16,borderRadius:8,background:'rgba(255,255,255,0.1)',border:'1px dashed #666',color:'#666',fontSize:8,display:'flex',alignItems:'center',justifyContent:'center'}} title="Pieces laden..."></div>
+                  );
+                }
                 // Render as puzzle piece (only during active gameplay)
                 const piece = pieces[g.index];
                 if (!piece) {

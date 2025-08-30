@@ -15,6 +15,13 @@ export function CreatePuzzle({ accessToken, onCreated }: Props) {
   const [error, setError] = useState<string>('');
   const imgRef = useRef<HTMLImageElement|null>(null);
   const [naturalSize, setNaturalSize] = useState({ w:0, h:0 });
+  // Dynamische Range abhängig von Bild; fallback default (nach naturalSize definiert)
+  // Slider-Max jetzt strikt 15% der kürzeren Seite (gedeckelt 2048, min fallback 128 vor Bildload)
+  const shorterSide = Math.min(naturalSize.w || 0, naturalSize.h || 0);
+  const dynamicMax = shorterSide
+    ? Math.min(2048, Math.max(16, Math.round(shorterSide * 0.15)))
+    : 128;
+  const dynamicMin = 8;
   const [scale, setScale] = useState(1); // Anzeige-Skalierung (displayWidth / naturalWidth)
   const containerRef = useRef<HTMLDivElement|null>(null);
   const [pointMode, setPointMode] = useState(true); // Toggle für Punktsetzung
@@ -235,10 +242,19 @@ export function CreatePuzzle({ accessToken, onCreated }: Props) {
       <div className="form-grid">
         <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,image/bmp,image/tiff" onChange={e=> e.target.files && onFile(e.target.files[0])} />
         <div className="btn-row" style={{flexWrap:'wrap', alignItems:'center'}}>
-          <label style={{flex:'1 1 100%'}}>Piece Größe: {pieceSize}px
-            <input type="range" min={16} max={128} step={2} value={pieceSize} onChange={e=> setPieceSize(+e.target.value)} />
+          <label style={{flex:'1 1 100%'}}>Piece Größe: {pieceSize}px ({naturalSize.w? ((pieceSize/Math.min(naturalSize.w,naturalSize.h))*100).toFixed(1): '?'}% kurzer Seite, Max {naturalSize.w? Math.round((dynamicMax/Math.min(naturalSize.w,naturalSize.h))*1000)/10: '?'}%)
+            <input type="range" min={dynamicMin} max={dynamicMax} step={2} value={pieceSize} onChange={e=> setPieceSize(+e.target.value)} />
           </label>
-          <small style={{opacity:.6}}>Diese Basisgröße wird gespeichert. Spieler sehen eine proportional skalierte Variante (Responsive Scaling bleibt erhalten).</small>
+          {naturalSize.w > 0 && (
+            <div style={{display:'flex', gap:8, flexWrap:'wrap', marginTop:4}}>
+              {[0.02,0.035,0.05,0.075,0.1].map(r => {
+                const v = Math.round(Math.min(naturalSize.w, naturalSize.h) * r);
+                return <button key={r} type="button" style={{fontSize:11,padding:'2px 6px'}} onClick={()=> setPieceSize(v)}>{Math.round(r*1000)/10}% ({v}px)</button>;
+              })}
+        <button type="button" style={{fontSize:11,padding:'2px 6px'}} onClick={()=> setPieceSize(dynamicMax)}>15% max</button>
+            </div>
+          )}
+      <small style={{opacity:.6}}>Dynamischer Bereich {dynamicMin}px – {dynamicMax}px (max 15% der kürzeren Bildseite). Wähle eine Größe, die erkennbar bleibt.</small>
         </div>
         {file && (
           <div ref={containerRef} style={{position:'relative',border:'1px solid #222',width:'100%',overflow:'hidden',cursor: pointMode ? (actionRef.current?'grabbing':'crosshair'):'default', touchAction:'none'}}
