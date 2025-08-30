@@ -117,8 +117,8 @@ export function App() {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <h1>Bild Rätsel</h1>
-        <div style={{display:'flex', alignItems:'center', gap:'1rem'}}>
+        <h1>Battle Nips</h1>
+        <div style={{display:'flex', alignItems:'center', gap:'0.5rem'}}>
           {user && (
             <>
               <span style={{fontWeight:500}}>{user.username}</span>
