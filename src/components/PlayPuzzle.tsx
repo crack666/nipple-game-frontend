@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { api } from '../api/client';
 
 interface PuzzleMeta { id:string; width:number; height:number; blackout:{x:number,y:number,w:number,h:number}; grid:{cols:number;rows:number}; image:string; pointsCount:number; attempt?: any; solutionPoints?: any[]; createdBy?:string; createdByUsername?:string }
@@ -318,45 +318,101 @@ export function PlayPuzzle({ id, accessToken, userId, username, onClose }: { id:
     }
   };
 
-  // Load puzzle pieces
-  const loadPuzzlePieces = async () => {
+  // Calculate optimal piece size based on current viewport and scale
+  const calculateOptimalPieceSize = useCallback(() => {
+    if (!natural.w || !natural.h || !scale) return 32;
+    
+    // Mindest-Piece-Größe für Bedienbarkeit (24px angezeigt)
+    const minDisplaySize = 24;
+    
+    // Berechne was Standard-32px Pieces aktuell wären
+    const standardPieceScaled = 32 * scale;
+    
+    // Falls zu klein, berechne benötigte Original-Größe für minDisplaySize
+    if (standardPieceScaled < minDisplaySize) {
+      const requiredSize = Math.ceil(minDisplaySize / scale);
+      // Runde auf 8er-Schritte für konsistente Backend-Generierung
+      return Math.ceil(requiredSize / 8) * 8;
+    }
+    
+    // Falls Standard groß genug, verwende 32px
+    return 32;
+  }, [natural.w, natural.h, scale]);
+
+  // Load puzzle pieces with optimal size
+  const loadPuzzlePieces = useCallback(async (targetPieceSize?: number) => {
     if (!accessToken || !puzzle) return;
     
     try {
       setLoadingPieces(true);
-      const data = await api.getPuzzlePieces(puzzle.id, accessToken);
+      
+      // Calculate optimal piece size if not provided
+      const optimalPieceSize = targetPieceSize || calculateOptimalPieceSize();
+      console.log('Loading pieces with size:', optimalPieceSize);
+      
+      const data = await api.getPuzzlePieces(puzzle.id, accessToken, optimalPieceSize);
       setPieces(data.pieces || []);
     } catch (err: any) {
       console.error('Failed to load puzzle pieces:', err);
     } finally {
       setLoadingPieces(false);
     }
-  };
+  }, [accessToken, puzzle?.id, calculateOptimalPieceSize]);
+
+  // Load pieces with specific size
+  const loadPuzzlePiecesWithSize = useCallback(async (size: number) => {
+    await loadPuzzlePieces(size);
+  }, [loadPuzzlePieces]);
 
   // Toggle pieces mode and load pieces when activated
-  const togglePiecesMode = async () => {
+  const togglePiecesMode = useCallback(async () => {
     if (!usePuzzlePieces) {
       // Switching to pieces mode - load pieces
-      await loadPuzzlePieces();
       setUsePuzzlePieces(true);
+      if (accessToken && puzzle) {
+        await loadPuzzlePieces();
+      }
     } else {
       // Switching back to bubbles mode
       setUsePuzzlePieces(false);
       // Don't clear pieces array - keep them loaded for potential return to pieces mode
-      // setPieces([]); // Removed to prevent piece disappearing
     }
-  };
+  }, [usePuzzlePieces, accessToken, puzzle, loadPuzzlePieces]);
 
   // Auto reveal original+solution after submission when already have result (backend returns attempt) but no solution yet
   useEffect(()=>{ if (puzzle && result && !solution && puzzle.solutionPoints) { setSolution(puzzle.solutionPoints); if (accessToken) { api.original(accessToken, puzzle.id).then(o=> setOriginalUrl(o.dataUrl)).catch(()=>{}); } } }, [puzzle, result, solution, accessToken]);
 
   // Auto-load pieces when component mounts and we're in play mode with pieces enabled
   useEffect(() => {
-    if (puzzle && canPlay && usePuzzlePieces && pieces.length === 0 && !loadingPieces) {
+    if (puzzle && canPlay && usePuzzlePieces && pieces.length === 0 && !loadingPieces && accessToken) {
       console.log('Auto-loading pieces for puzzle:', puzzle.id);
       loadPuzzlePieces();
     }
-  }, [puzzle, canPlay, usePuzzlePieces, pieces.length, loadingPieces]);
+  }, [puzzle?.id, canPlay, usePuzzlePieces, pieces.length, loadingPieces, accessToken]);
+
+  // Responsive piece reload: reload pieces when scale changes significantly
+  const lastReloadRef = useRef<number>(0);
+  useEffect(() => {
+    if (!puzzle || !pieces.length || !scale || !natural.w || !natural.h || !accessToken) return;
+    
+    // Debounce: Mindestens 1 Sekunde zwischen Reloads
+    const now = Date.now();
+    if (now - lastReloadRef.current < 1000) return;
+    
+    const newOptimalSize = calculateOptimalPieceSize();
+    const currentPieceSize = pieces[0]?.width || 32;
+    
+    // Neu laden wenn Abweichung > 25%
+    const sizeDifference = Math.abs(newOptimalSize - currentPieceSize) / currentPieceSize;
+    const shouldReload = sizeDifference > 0.25;
+    
+    if (shouldReload) {
+      console.log(`Reloading pieces: current=${currentPieceSize}px, optimal=${newOptimalSize}px, difference=${Math.round(sizeDifference * 100)}%`);
+      lastReloadRef.current = now;
+      loadPuzzlePiecesWithSize(newOptimalSize);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scale, natural.w, natural.h, puzzle?.id, accessToken]);
 
   // Firework effects: per-point (>=90) + overall accuracy (>85%) (trigger once)
   const firedRef = useRef(false);

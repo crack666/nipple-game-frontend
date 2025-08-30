@@ -29,8 +29,9 @@ export const api = {
     if (token) headers['Authorization'] = 'Bearer ' + token;
     return fetch(BASE + '/puzzles/' + id, { headers, credentials: 'include' }).then(r=>r.json());
   },
-  getPuzzlePieces: (id: string, token: string) => {
-    return fetch(BASE + '/puzzles/' + id + '/pieces', { 
+  getPuzzlePieces: (id: string, token: string, pieceSize?: number) => {
+    const url = BASE + '/puzzles/' + id + '/pieces' + (pieceSize ? `?pieceSize=${pieceSize}` : '');
+    return fetch(url, { 
       headers: { 'Authorization': 'Bearer ' + token }, 
       credentials: 'include' 
     }).then(async r => {
