@@ -13,7 +13,7 @@
 }
 body,html,#root { margin:0; padding:0; background: var(--bg); color: var(--text); min-height:100%; }
  .app-shell { max-width: 1380px; margin: 0 auto; padding: 1.2rem; display:flex; flex-direction:column; gap:1.2rem; }
-.app-header { display:flex; align-items:center; justify-content:space-between; gap:1rem; }
+.app-header { display:flex; align-items:center; justify-content:space-between; gap:0rem; }
  h1 { font-size: clamp(1.4rem,2.4vw,2.2rem); margin:0; letter-spacing: .5px; }
 .status-pill { padding:.35rem .75rem; font-size:.75rem; border:1px solid var(--border); border-radius: 999px; background: linear-gradient(145deg,#1b2028,#14181e); }
 .status-pill[data-state=ok]{ border-color:#2ea043; color:#3fbf5a; }
@@ -38,7 +38,7 @@ label { font-size:.75rem; display:flex; flex-direction:column; gap:.35rem; font-
 .app-footer { margin-top:auto; opacity:.4; font-size:.65rem; text-align:center; padding:1rem 0 .2rem; }
 /* Tabs */
 .tabs-bar { display:flex; gap:0.3rem; flex-wrap:wrap; margin-top:-.4rem; }
-.tab { background:#222a33; padding:.65rem 1.2rem; border-radius:12px; font-size:.8rem; letter-spacing:.4px; font-weight:600; position:relative; }
+.tab { background:#222a33; padding:.65rem 0.7rem; border-radius:12px; font-size:.8rem; letter-spacing:.4px; font-weight:600; position:relative; }
 .tab.active { background:linear-gradient(135deg,#295bff,#4e83ff); box-shadow:0 0 0 1px #295bff88,0 6px 14px -6px #000; }
 .tab:not(.active):hover { background:#27313c; }
 .tab-badge { position:absolute; top:-6px; right:-6px; background:#ff4fa3; color:#fff; font-size:.55rem; padding:.25rem .4rem; border-radius:999px; box-shadow:0 0 0 2px #1f242d; }
